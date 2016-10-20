@@ -23,13 +23,6 @@ Parameters:
   NatGatewayIP:
     Description: The NAT gateway IP associated with the Private subnets required for ElasticSearch Access
     Type: String
-  BackendSSL:
-    AllowedValues:
-    - 'true'
-    - 'false'
-    Default: 'false'
-    Description: Choose to use backend ssl in addition to ELB ssl
-    Type: String
   DBPassword:
     Description: Enter DB Password
     NoEcho: true
@@ -87,9 +80,6 @@ Parameters:
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
-
-Conditions:
-  BackendSSLCon: !Equals [ !Ref BackendSSL, 'true' ]
 
 Mappings:
   AWSRegion2AMI:
@@ -275,12 +265,8 @@ Resources:
       - CookieExpirationPeriod: '3600'
         PolicyName: PublicELBCookieStickinessPolicy
       Listeners:
-      - InstancePort:
-          Fn::If:
-          - BackendSSLCon
-          - '443'
-          - '80'
-        InstanceProtocol: HTTPS
+      - InstancePort: 80
+        InstanceProtocol: HTTP
         LoadBalancerPort: '443'
         PolicyNames:
         - PublicELBCookieStickinessPolicy
