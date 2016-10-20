@@ -1,0 +1,527 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cloudformation Backendless Chef v1.0
+
+Parameters:
+  PrivateSubnetA:
+    Description: Choose the Subnet ID to use for the A AZ to use
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnetB:
+    Description: Choose the Subnet ID to use for the B AZ to use
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnetC:
+    Description: Choose the Subnet ID to use for the C AZ to use
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnetA:
+    Description: Choose the Subnet ID to use for the A AZ to use
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnetB:
+    Description: Choose the Subnet ID to use for the B AZ to use
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnetC:
+    Description: Choose the Subnet ID to use for the C AZ to use
+    Type: AWS::EC2::Subnet::Id
+  NatGatewayIP:
+    Description: The NAT gateway IP associated with the Private subnets required for ElasticSearch Access
+    Type: String
+  BackendSSL:
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'false'
+    Description: Choose to use backend ssl in addition to ELB ssl
+    Type: String
+  DBPassword:
+    Description: Enter DB Password
+    NoEcho: true
+    Type: String
+  DBPort:
+    Default: '5432'
+    Description: Enter DB Port
+    Type: String
+  DBUser:
+    Description: Enter DB User Name
+    Default: 'chefadmin'
+    Type: String
+  DBName:
+    Description: Enter DB Name
+    Default: 'chef'
+    Type: String
+  DBAllocatedStorage:
+    Description: Storage size allocated for the database
+    Default: '100'
+    Type: String
+  DBIops:
+    Description: IOPS allocated to the storage (storage size * 10)
+    Default: '1000'
+    Type: String
+  DBInstanceClass:
+    Description: Storage size allocated for the database
+    Default: 'db.r3.large'
+    Type: String
+  InstanceType:
+    ConstraintDescription: must be a valid EC2 instance type.
+    Default: c4.large
+    Type: String
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+  LicenseCount:
+    Default: '999999'
+    Description: Enter how many licenses you have purchased
+    Type: String
+  SSHSecurityGroup:
+    Default: ''
+    Description: Select Security Group for SSH Access
+    Type: AWS::EC2::SecurityGroup::Id
+  SSLCertificateARN:
+    Default: 'arn:aws:iam::'
+    Description: SSL Certficate ARN for SSL Certficate
+    Type: String
+  SignupDisable:
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'false'
+    Description: Enter True/False for signup disable (false by default)
+    Type: String
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
+
+Conditions:
+  BackendSSLCon: !Equals [ !Ref BackendSSL, 'true' ]
+
+Mappings:
+  AWSRegion2AMI:
+    us-east-1:
+      centos: ami-0d206e1a
+    us-west-1:
+      centos: ami-c7b3faa7
+    us-west-2:
+      centos: ami-6c2ff70c
+
+Resources:
+  BootstrapAutoScaleGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - DBPostgres
+      - ElasticsearchDomain
+    Properties:
+      AvailabilityZones: {"Fn::GetAZs": ""}
+      LaunchConfigurationName: !Ref ServerLaunchConfig
+      LoadBalancerNames:
+      - !Ref PrimaryElasticLoadBalancer
+      MaxSize: '1'
+      MinSize: '1'
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-bootstrap-chef-frontend
+        PropagateAtLaunch: true
+      - Key: X-Dept
+        Value: success
+        PropagateAtLaunch: true
+      - Key: X-Contact
+        Value: irving@chef.io
+        PropagateAtLaunch: true
+      VPCZoneIdentifier:
+      - !Ref PrivateSubnetA
+      - !Ref PrivateSubnetB
+      - !Ref PrivateSubnetC
+
+  FrontendAutoScaleGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - BootstrapAutoScaleGroup
+      - WaitCondition
+    Properties:
+      AvailabilityZones: {"Fn::GetAZs": ""}
+      LaunchConfigurationName: !Ref ServerLaunchConfig
+      LoadBalancerNames:
+      - !Ref PrimaryElasticLoadBalancer
+      MaxSize: '3'
+      MinSize: '1'
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-chef-frontend
+        PropagateAtLaunch: true
+      - Key: X-Dept
+        Value: success
+        PropagateAtLaunch: true
+      - Key: X-Contact
+        Value: irving@chef.io
+        PropagateAtLaunch: true
+      VPCZoneIdentifier:
+      - !Ref PrivateSubnetA
+      - !Ref PrivateSubnetB
+      - !Ref PrivateSubnetC
+
+  ChefBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+
+  ChefInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref ChefRole
+
+  ChefRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+
+  RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: chef-s3
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action: s3:*
+          Effect: Allow
+          Resource:
+          - !Sub 'arn:aws:s3:::${ChefBucket}'
+          - !Sub 'arn:aws:s3:::${ChefBucket}/*'
+        - Action: s3:List*
+          Effect: Allow
+          Resource: arn:aws:s3:::*
+        - Action: ec2:DescribeTags
+          Effect: Allow
+          Resource: "*"
+      Roles:
+      - !Ref ChefRole
+
+  FrontendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef Frontend
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: '0'
+        IpProtocol: tcp
+        ToPort: '65535'
+      SecurityGroupIngress:
+      - FromPort: '80'
+        IpProtocol: tcp
+        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        ToPort: '80'
+      - FromPort: '443'
+        IpProtocol: tcp
+        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        ToPort: '443'
+      - FromPort: '443'
+        IpProtocol: tcp
+        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        ToPort: '9090'
+      - FromPort: '80'
+        IpProtocol: tcp
+        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        ToPort: '9090'
+      - FromPort: '22'
+        IpProtocol: tcp
+        SourceSecurityGroupId: !Ref SSHSecurityGroup
+        ToPort: '22'
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-FE-SG
+      VpcId: !Ref VPC
+
+  LoadBalancerSecurityGroup:
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: '0'
+        IpProtocol: tcp
+        ToPort: '65535'
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: '80'
+        IpProtocol: tcp
+        ToPort: '80'
+      - CidrIp: 0.0.0.0/0
+        FromPort: '443'
+        IpProtocol: tcp
+        ToPort: '443'
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ELB-SG
+      VpcId: !Ref VPC
+    Type: AWS::EC2::SecurityGroup
+
+  PrimaryElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      CrossZone: true
+      HealthCheck:
+        HealthyThreshold: '2'
+        Interval: '90'
+        Target: HTTP:80/_status
+        Timeout: '60'
+        UnhealthyThreshold: '10'
+      LBCookieStickinessPolicy:
+      - CookieExpirationPeriod: '3600'
+        PolicyName: PublicELBCookieStickinessPolicy
+      Listeners:
+      - InstancePort:
+          Fn::If:
+          - BackendSSLCon
+          - '443'
+          - '80'
+        InstanceProtocol: HTTPS
+        LoadBalancerPort: '443'
+        PolicyNames:
+        - PublicELBCookieStickinessPolicy
+        Protocol: HTTPS
+        SSLCertificateId: !Ref SSLCertificateARN
+      SecurityGroups:
+      - !Ref LoadBalancerSecurityGroup
+      Subnets:
+      - !Ref PublicSubnetA
+      - !Ref PublicSubnetB
+      - !Ref PublicSubnetC
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-elb
+      - Key: X-Dept
+        Value: success
+      - Key: X-Contact
+        Value: irving@chef.io
+
+  ServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      EbsOptimized: true
+      BlockDeviceMappings:
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: 20
+          VolumeType: gp2
+          DeleteOnTermination: true
+      IamInstanceProfile: !Ref ChefInstanceProfile
+      ImageId: !FindInMap
+        - AWSRegion2AMI
+        - !Ref AWS::Region
+        - centos
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SecurityGroups:
+      - !Ref FrontendSecurityGroup
+      - !Ref SSHSecurityGroup
+      UserData:
+        "Fn::Base64": !Sub |
+            #!/bin/bash -xe
+            # Install cfn-* and friends commands on CentOS 7
+            yum install python-setuptools wget git -y
+            /usr/bin/easy_install --script-dir /opt/aws/bin https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+            for i in `/bin/ls -1 /opt/aws/bin/`; do ln -s /opt/aws/bin/$i /usr/bin/ ; done
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            rpm:
+              chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.9.1-1.el7.x86_64.rpm
+              chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.3-1.el7.x86_64.rpm
+              epel: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+            yum:
+              awscli: []
+              atop: []
+              ntp: []
+          services:
+            ntpd:
+              enabled: true
+              ensureRunning: true
+              packages:
+                yum:
+                  - ntp
+          files:
+            /etc/opscode/chef-server.rb:
+              content: !Sub |
+                  api_fqdn '${PrimaryElasticLoadBalancer.DNSName}'
+                  nginx['enable_non_ssl'] = true
+                  license['nodes'] = ${LicenseCount}
+                  postgresql['external'] = true
+                  postgresql['vip'] = '${DBPostgres.Endpoint.Address}'
+                  postgresql['db_superuser'] = '${DBUser}'
+                  postgresql['db_superuser_password'] = '${DBPassword}'
+                  oc_chef_authz['http_init_count'] = 100
+                  oc_chef_authz['http_max_count'] = 100
+                  oc_chef_authz['http_queue_max'] = 200
+                  oc_bifrost['db_pool_size'] = 20
+                  oc_bifrost['db_pool_queue_max'] = 40
+                  oc_bifrost['db_pooler_timeout'] = 2000
+                  opscode_erchef['depsolver_worker_count'] = 4
+                  opscode_erchef['depsolver_timeout'] = 20000
+                  opscode_erchef['db_pool_size'] = 20
+                  opscode_erchef['db_pool_queue_max'] = 40
+                  opscode_erchef['db_pooler_timeout'] = 2000
+                  opscode_erchef['authz_pooler_timeout'] = 2000
+                  opscode_erchef['nginx_bookshelf_caching'] = :on
+                  opscode_erchef['s3_url_expiry_window_size'] = '100%'
+                  opscode_erchef['search_provider'] = 'elasticsearch'
+                  opscode_erchef['search_queue_mode'] = 'batch'
+                  opscode_solr4['external'] = true
+                  opscode_solr4['external_url'] = 'https://${ElasticsearchDomain.DomainEndpoint}'
+                  bookshelf['storage_type'] = :sql
+                  rabbitmq['enable'] = false
+                  rabbitmq['management_enabled'] = false
+                  rabbitmq['queue_length_monitor_enabled'] = false
+                  opscode_expander['enable'] = false
+                  dark_launch['actions'] = false
+          commands:
+            01_configure_chef_server:
+              command: !Sub |
+                #!/bin/bash -xev
+                # Helper function to set wait timer
+                function error_exit {
+                  /opt/aws/bin/cfn-signal -e 1 -r \$1\ '${WaitHandle}'
+                  exit 1
+                }
+                export -f error_exit
+
+                # Determine if we are the bootstrap node
+                INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
+                BOOTSTRAP_TAGS=`aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
+
+                # If we're not bootstrap, sync down the rest of the secrets first before reconfiguring
+                if [ -z $BOOTSTRAP_TAGS ]; then
+                  echo "[INFO] configuring this node as a regular Chef frontend"
+                  aws s3 sync s3://${ChefBucket}/etc_opscode /etc/opscode
+                  mkdir -p /var/opt/opscode/upgrades
+                  touch /var/opt/opscode/bootstrapped
+                  aws s3 cp s3://${ChefBucket}/migration-level /var/opt/opscode/upgrades/
+                else
+                  echo "[INFO] configuring this node as a Bootstrap Chef frontend"
+                fi
+
+                # Configure the chef server
+                chef-server-ctl reconfigure --accept-license
+                chef-manage-ctl reconfigure --accept-license
+
+                # the bootstrap should sync files after reconfigure
+                if [ -n $BOOTSTRAP_TAGS ]; then
+                  echo "[INFO] syncing secrets up to S3"
+                  aws s3 sync /etc/opscode s3://${ChefBucket}/etc_opscode
+                  aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${ChefBucket}/
+                fi
+
+                # All is well so signal success and let CF know wait function is complete
+                /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}'
+
+
+  WaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: ServerLaunchConfig
+    Properties:
+      Handle: !Ref WaitHandle
+      Timeout: '2300'
+
+  WaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+
+#########################################################################################
+# PostgreSQL DB
+#########################################################################################
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Frontend Access"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
+          SourceSecurityGroupId: !Ref FrontendSecurityGroup
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: RDS DB subnet group
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+        - !Ref PrivateSubnetC
+
+  DBPostgres:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: !Ref DBName
+      AllocatedStorage: !Ref DBAllocatedStorage
+      Iops: !Ref DBIops
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      DBInstanceClass: !Ref DBInstanceClass
+      StorageType: io1
+      MultiAZ: true
+      Engine: postgres
+      EngineVersion: 9.5.4
+      AutoMinorVersionUpgrade: true
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-pgdb
+        - Key: X-Dept
+          Value: success
+        - Key: X-Contact
+          Value: irving@chef.io
+    DeletionPolicy: "Snapshot"
+
+#########################################################################################
+# ElasticSearch
+#########################################################################################
+  ElasticsearchDomain:
+    Type: "AWS::Elasticsearch::Domain"
+    Properties:
+      ElasticsearchVersion: 2.3
+      ElasticsearchClusterConfig:
+        InstanceCount: 3
+        ZoneAwarenessEnabled: false
+        InstanceType: m3.large.elasticsearch
+        DedicatedMasterEnabled: false
+        # DedicatedMasterType: t2.medium.elasticsearch
+        # DedicatedMasterCount: "3"
+      # EBSOptions:
+      #   EBSEnabled: true
+      #   Iops: !Ref DBIops
+      #   VolumeSize: !Ref DBAllocatedStorage
+      #   VolumeType: io1
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: "0"
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal: "*"
+            Action: "es:*"
+            Condition:
+              IpAddress:
+                "aws:sourceIp":
+                  - !Ref NatGatewayIP
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: "true"
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ES
+      - Key: X-Dept
+        Value: success
+      - Key: X-Contact
+        Value: irving@chef.io
+
+Outputs: {}
