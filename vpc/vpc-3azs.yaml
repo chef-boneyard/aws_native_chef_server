@@ -47,7 +47,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: '${AWS::StackName} A public'
+        Value: !Sub '${AWS::StackName} A public'
       - Key: Reach
         Value: public
   SubnetAPrivate:
@@ -58,7 +58,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: '${AWS::StackName} A private'
+        Value: !Sub '${AWS::StackName} A private'
       - Key: Reach
         Value: private
   SubnetBPublic:
@@ -70,7 +70,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: '${AWS::StackName} B public'
+        Value: !Sub '${AWS::StackName} B public'
       - Key: Reach
         Value: public
   SubnetBPrivate:
@@ -81,7 +81,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: '${AWS::StackName} B private'
+        Value: !Sub '${AWS::StackName} B private'
       - Key: Reach
         Value: private
   SubnetCPublic:
@@ -93,7 +93,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: '${AWS::StackName} C public'
+        Value: !Sub '${AWS::StackName} C public'
       - Key: Reach
         Value: public
   SubnetCPrivate:
@@ -104,7 +104,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: '${AWS::StackName} C private'
+        Value: !Sub '${AWS::StackName} C private'
       - Key: Reach
         Value: private
   RouteTablePublic:

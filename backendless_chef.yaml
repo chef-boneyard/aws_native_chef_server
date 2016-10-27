@@ -84,13 +84,14 @@ Parameters:
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      centos: ami-0d206e1a
+      centos: ami-a2f1aeb5
     us-west-1:
-      centos: ami-c7b3faa7
+      centos: ami-4895de28
     us-west-2:
-      centos: ami-6c2ff70c
+      centos: ami-e6963186
 
 Resources:
+  # The first chef server we launch is the 'bootstrap' which needs to come up first and set schema before the rest
   BootstrapAutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn:
@@ -105,7 +106,7 @@ Resources:
       MinSize: '1'
       Tags:
       - Key: Name
-        Value: !Sub ${AWS::StackName}-bootstrap-chef-frontend
+        Value: !Sub ${AWS::StackName}-bootstrap-frontend
         PropagateAtLaunch: true
       - Key: X-Dept
         Value: success
@@ -132,7 +133,7 @@ Resources:
       MinSize: '1'
       Tags:
       - Key: Name
-        Value: !Sub ${AWS::StackName}-chef-frontend
+        Value: !Sub ${AWS::StackName}-frontend
         PropagateAtLaunch: true
       - Key: X-Dept
         Value: success
@@ -309,35 +310,27 @@ Resources:
       - !Ref SSHSecurityGroup
       UserData:
         "Fn::Base64": !Sub |
-            #!/bin/bash -xe
-            # Install cfn-* and friends commands on CentOS 7
-            yum install python-setuptools wget git -y
-            /usr/bin/easy_install --script-dir /opt/aws/bin https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
-            for i in `/bin/ls -1 /opt/aws/bin/`; do ln -s /opt/aws/bin/$i /usr/bin/ ; done
-            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
+          #!/bin/bash -x
+          function error_exit {
+            /opt/aws/bin/cfn-signal -e 1 -r \$1\ '${WaitHandle}'
+            exit 1
+          }
+          export -f error_exit
+          # Execute AWS::CloudFormation::Init
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region} || error_exit 'Failed to run cfn-init'
+          # All is well so signal success and let CF know wait function is complete
+          /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}'
     Metadata:
       AWS::CloudFormation::Init:
         config:
           packages:
             rpm:
               chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.9.1-1.el7.x86_64.rpm
-              chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.3-1.el7.x86_64.rpm
-              epel: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-            yum:
-              awscli: []
-              atop: []
-              ntp: []
-          services:
-            ntpd:
-              enabled: true
-              ensureRunning: true
-              packages:
-                yum:
-                  - ntp
+              chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.4-1.el7.x86_64.rpm
           files:
             /etc/opscode/chef-server.rb:
               content: !Sub |
-                  api_fqdn '${PrimaryElasticLoadBalancer.DNSName}'
+                  api_fqdn '${PrimaryElasticLoadBalancer.DNSName}'.downcase
                   nginx['enable_non_ssl'] = true
                   license['nodes'] = ${LicenseCount}
                   postgresql['external'] = true
@@ -345,17 +338,16 @@ Resources:
                   postgresql['db_superuser'] = '${DBUser}'
                   postgresql['db_superuser_password'] = '${DBPassword}'
                   oc_chef_authz['http_init_count'] = 100
-                  oc_chef_authz['http_max_count'] = 100
                   oc_chef_authz['http_queue_max'] = 200
-                  oc_bifrost['db_pool_size'] = 20
+                  opscode_erchef['authz_pooler_timeout'] = 2000
+                  oc_bifrost['db_pool_init'] = 10
+                  oc_bifrost['db_pool_max'] = 20
                   oc_bifrost['db_pool_queue_max'] = 40
-                  oc_bifrost['db_pooler_timeout'] = 2000
                   opscode_erchef['depsolver_worker_count'] = 4
                   opscode_erchef['depsolver_timeout'] = 20000
-                  opscode_erchef['db_pool_size'] = 20
+                  opscode_erchef['db_pool_init'] = 10
+                  opscode_erchef['db_pool_max'] = 20
                   opscode_erchef['db_pool_queue_max'] = 40
-                  opscode_erchef['db_pooler_timeout'] = 2000
-                  opscode_erchef['authz_pooler_timeout'] = 2000
                   opscode_erchef['nginx_bookshelf_caching'] = :on
                   opscode_erchef['s3_url_expiry_window_size'] = '100%'
                   opscode_erchef['search_provider'] = 'elasticsearch'
@@ -371,20 +363,11 @@ Resources:
           commands:
             01_configure_chef_server:
               command: !Sub |
-                #!/bin/bash -xev
-                # Helper function to set wait timer
-                function error_exit {
-                  /opt/aws/bin/cfn-signal -e 1 -r \$1\ '${WaitHandle}'
-                  exit 1
-                }
-                export -f error_exit
-
                 # Determine if we are the bootstrap node
                 INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
                 BOOTSTRAP_TAGS=`aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
-
                 # If we're not bootstrap, sync down the rest of the secrets first before reconfiguring
-                if [ -z $BOOTSTRAP_TAGS ]; then
+                if [ -z "${!BOOTSTRAP_TAGS}" ]; then
                   echo "[INFO] configuring this node as a regular Chef frontend"
                   aws s3 sync s3://${ChefBucket}/etc_opscode /etc/opscode
                   mkdir -p /var/opt/opscode/upgrades
@@ -393,21 +376,15 @@ Resources:
                 else
                   echo "[INFO] configuring this node as a Bootstrap Chef frontend"
                 fi
-
                 # Configure the chef server
                 chef-server-ctl reconfigure --accept-license
                 chef-manage-ctl reconfigure --accept-license
-
-                # the bootstrap should sync files after reconfigure
-                if [ -n $BOOTSTRAP_TAGS ]; then
+                # the bootstrap instance should sync files after reconfigure
+                if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                   echo "[INFO] syncing secrets up to S3"
                   aws s3 sync /etc/opscode s3://${ChefBucket}/etc_opscode
                   aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${ChefBucket}/
                 fi
-
-                # All is well so signal success and let CF know wait function is complete
-                /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}'
-
 
   WaitCondition:
     Type: AWS::CloudFormation::WaitCondition
@@ -444,6 +421,7 @@ Resources:
 
   DBPostgres:
     Type: AWS::RDS::DBInstance
+    DeletionPolicy: "Snapshot"
     Properties:
       DBName: !Ref DBName
       AllocatedStorage: !Ref DBAllocatedStorage
@@ -456,6 +434,7 @@ Resources:
       Engine: postgres
       EngineVersion: 9.5.4
       AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 35
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref DBSecurityGroup
@@ -467,13 +446,13 @@ Resources:
           Value: success
         - Key: X-Contact
           Value: irving@chef.io
-    DeletionPolicy: "Snapshot"
 
 #########################################################################################
 # ElasticSearch
 #########################################################################################
   ElasticsearchDomain:
     Type: "AWS::Elasticsearch::Domain"
+    DeletionPolicy: "Snapshot"
     Properties:
       ElasticsearchVersion: 2.3
       ElasticsearchClusterConfig:
@@ -509,5 +488,10 @@ Resources:
         Value: success
       - Key: X-Contact
         Value: irving@chef.io
+
+
+#########################################################################################
+# Monitoring
+#########################################################################################
 
 Outputs: {}

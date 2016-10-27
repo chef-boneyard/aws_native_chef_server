@@ -2,6 +2,11 @@
 #Requirements:
 * A VPC with 3 public and 3 private subnets
   * the private subnets must be behind a NAT gateway (or multiple)
+* AMI: It's recommended that you use the AMIs supplied in the template, which are CentOS 7 based and come from here: [github.com/irvingpop/packer-chef-highperf-centos7-ami](https://github.com/irvingpop/packer-chef-highperf-centos7-ami)
+  * If you use your own, the following things need to be installed:
+    - awscli (`aws` command)
+    - Cloudformation Helper Scripts (`cfn-init` and `cfn-signal` commands)
+    - NTP (installed and enabled)
 
 
 #Creating a VPC to spec
