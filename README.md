@@ -42,7 +42,9 @@ aws cloudformation create-stack \
   ParameterKey=PrivateSubnetA,ParameterValue=subnet-fe2f279a \
   ParameterKey=PrivateSubnetB,ParameterValue=subnet-6d30121b \
   ParameterKey=PrivateSubnetC,ParameterValue=subnet-0c61fa54 \
-  ParameterKey=NatGatewayIP,ParameterValue=35.160.121.138
+  ParameterKey=NatGatewayIP,ParameterValue=35.160.121.138 \
+  ParameterKey=InstanceType,ParameterValue=c4.xlarge \
+  ParameterKey=DBInstanceClass,ParameterValue=db.m4.xlarge
 
 ```
 
