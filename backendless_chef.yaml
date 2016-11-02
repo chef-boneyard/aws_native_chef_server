@@ -2,27 +2,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Cloudformation Backendless Chef v1.0
 
 Parameters:
-  PrivateSubnetA:
-    Description: Choose the Subnet ID to use for the A AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PrivateSubnetB:
-    Description: Choose the Subnet ID to use for the B AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PrivateSubnetC:
-    Description: Choose the Subnet ID to use for the C AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PublicSubnetA:
-    Description: Choose the Subnet ID to use for the A AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PublicSubnetB:
-    Description: Choose the Subnet ID to use for the B AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PublicSubnetC:
-    Description: Choose the Subnet ID to use for the C AZ to use
-    Type: AWS::EC2::Subnet::Id
-  NatGatewayIP:
-    Description: The NAT gateway IP associated with the Private subnets required for ElasticSearch Access
-    Type: String
+  LoadBalancerSubnets:
+    Description: Provide a list of Subnet IDs for the ELB
+    Type: List<AWS::EC2::Subnet::Id>
+  ChefServerSubnets:
+    Description: Provide a list of Subnet IDs for the Chef Servers (must be behind a NAT gateway)
+    Type: List<AWS::EC2::Subnet::Id>
+  NatGatewayIPs:
+    Description: The NAT gateway IP associated with the chef server subnets required for ElasticSearch Access
+    Type: CommaDelimitedList
   DBPassword:
     Description: Enter DB Password
     NoEcho: true
@@ -115,10 +103,7 @@ Resources:
       - Key: X-Contact
         Value: irving@chef.io
         PropagateAtLaunch: true
-      VPCZoneIdentifier:
-      - !Ref PrivateSubnetA
-      - !Ref PrivateSubnetB
-      - !Ref PrivateSubnetC
+      VPCZoneIdentifier: !Ref ChefServerSubnets
 
   FrontendAutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -142,10 +127,7 @@ Resources:
       - Key: X-Contact
         Value: irving@chef.io
         PropagateAtLaunch: true
-      VPCZoneIdentifier:
-      - !Ref PrivateSubnetA
-      - !Ref PrivateSubnetB
-      - !Ref PrivateSubnetC
+      VPCZoneIdentifier: !Ref ChefServerSubnets
 
   ChefBucket:
     Type: AWS::S3::Bucket
@@ -276,10 +258,7 @@ Resources:
         SSLCertificateId: !Ref SSLCertificateARN
       SecurityGroups:
       - !Ref LoadBalancerSecurityGroup
-      Subnets:
-      - !Ref PublicSubnetA
-      - !Ref PublicSubnetB
-      - !Ref PublicSubnetC
+      Subnets: !Ref LoadBalancerSubnets
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-elb
@@ -326,7 +305,7 @@ Resources:
         config:
           packages:
             rpm:
-              chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.9.1-1.el7.x86_64.rpm
+              chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.10.0-1.el7.x86_64.rpm
               chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.4-1.el7.x86_64.rpm
           files:
             /etc/opscode/chef-server.rb:
@@ -478,10 +457,7 @@ Resources:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: RDS DB subnet group
-      SubnetIds:
-        - !Ref PrivateSubnetA
-        - !Ref PrivateSubnetB
-        - !Ref PrivateSubnetC
+      SubnetIds: !Ref ChefServerSubnets
 
   DBPostgres:
     Type: AWS::RDS::DBInstance
@@ -540,8 +516,7 @@ Resources:
             Action: "es:*"
             Condition:
               IpAddress:
-                "aws:sourceIp":
-                  - !Ref NatGatewayIP
+                "aws:sourceIp": !Ref NatGatewayIPs
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
       Tags:
