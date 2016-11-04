@@ -39,6 +39,10 @@ Parameters:
     Description: Storage size allocated for the database
     Default: 'db.m4.large'
     Type: String
+  DBSubnetGroupArn:
+    Description: Provide a DB Subnet Group ARN (or leave blank to have one created for you)
+    Default: ''
+    Type: String
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
@@ -89,6 +93,8 @@ Conditions:
     !Equals [ !Ref ChefServerIamRole, '' ]
   CreateChefSecretsBucket:
     !Equals [ !Ref ChefSecretsBucket, '' ]
+  CreateDBSubnetGroup:
+    !Equals [ !Ref DBSubnetGroupArn, '' ]
 
 Mappings:
   AWSRegion2AMI:
@@ -477,6 +483,7 @@ Resources:
           SourceSecurityGroupId: !Ref FrontendSecurityGroup
 
   DBSubnetGroup:
+    Condition: CreateDBSubnetGroup
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: RDS DB subnet group
@@ -498,7 +505,7 @@ Resources:
       EngineVersion: 9.5.4
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
-      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBSubnetGroupName: "Fn:If": [CreateDBSubnetGroup, !Ref DBSubnetGroup, !Ref DBSubnetGroupArn]
       VPCSecurityGroups:
         - !Ref DBSecurityGroup
       PubliclyAccessible: false
