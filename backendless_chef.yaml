@@ -55,11 +55,10 @@ Parameters:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: AWS::EC2::KeyPair::KeyName
   LicenseCount:
-    Default: '999999'
+    Default: '25'
     Description: Enter how many licenses you have purchased
     Type: String
   SSHSecurityGroup:
-    Default: ''
     Description: Select Security Group for SSH Access
     Type: AWS::EC2::SecurityGroup::Id
   SSLCertificateARN:
@@ -69,6 +68,27 @@ Parameters:
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
+  DisableSignup:
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'false'
+    Description: Allow users to sign themselves up to the chef server? (enter true or false)
+    Type: String
+  ChefServerIamRole:
+    Description: Supply an IAM Role for the Chef Servers (leave blank to have it created for you)
+    Type: String
+    Default: ''
+  ChefSecretsBucket:
+    Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
+    Type: String
+    Default: ''
+
+Conditions:
+  CreateChefServerIamRole:
+    !Equals [ !Ref ChefServerIamRole, '' ]
+  CreateChefSecretsBucket:
+    !Equals [ !Ref ChefSecretsBucket, '' ]
 
 Mappings:
   AWSRegion2AMI:
@@ -130,6 +150,7 @@ Resources:
       VPCZoneIdentifier: !Ref ChefServerSubnets
 
   ChefBucket:
+    Condition: CreateChefSecretsBucket
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
@@ -140,9 +161,10 @@ Resources:
     Properties:
       Path: /
       Roles:
-      - !Ref ChefRole
+      - !If [CreateChefServerIamRole, !Ref ChefRole, !Ref ChefServerIamRole]
 
   ChefRole:
+    Condition: CreateChefServerIamRole
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -157,20 +179,24 @@ Resources:
       Path: /
 
   RolePolicies:
+    Condition: CreateChefServerIamRole
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: chef-s3
+      PolicyName: !Sub ${AWS::StackName}-ChefServer-Policy
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
+        # Allow all actions to one bucket (the supplied one, or the one you provided)
         - Action: s3:*
           Effect: Allow
           Resource:
-          - !Sub 'arn:aws:s3:::${ChefBucket}'
-          - !Sub 'arn:aws:s3:::${ChefBucket}/*'
+          - !Join ['', [ 'arn:aws:s3:::', "Fn::If": [CreateChefSecretsBucket, !Ref ChefBucket, !Ref CreateChefSecretsBucket] ]]
+          - !Join ['', [ 'arn:aws:s3:::', "Fn::If": [CreateChefSecretsBucket, !Ref ChefBucket, !Ref CreateChefSecretsBucket], '/*' ]]
+        # Allow ability to list all buckets
         - Action: s3:List*
           Effect: Allow
           Resource: arn:aws:s3:::*
+        # Allow instances to read their own tags (needed for setup script below)
         - Action: ec2:DescribeTags
           Effect: Allow
           Resource: "*"
@@ -195,14 +221,6 @@ Resources:
         IpProtocol: tcp
         SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
         ToPort: '443'
-      - FromPort: '443'
-        IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-        ToPort: '9090'
-      - FromPort: '80'
-        IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-        ToPort: '9090'
       - FromPort: '22'
         IpProtocol: tcp
         SourceSecurityGroupId: !Ref SSHSecurityGroup
@@ -308,6 +326,9 @@ Resources:
               chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.10.0-1.el7.x86_64.rpm
               chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.4-1.el7.x86_64.rpm
           files:
+            /etc/chef-manage/manage.rb:
+              content: !Sub
+                disable_sign_up ${DisableSignup}
             /etc/opscode/chef-server.rb:
               content: !Sub |
                 api_fqdn '${PrimaryElasticLoadBalancer.DNSName}'.downcase
@@ -407,13 +428,15 @@ Resources:
                 # Determine if we are the bootstrap node
                 INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
                 BOOTSTRAP_TAGS=`aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
+                BUCKET="Fn::If": [CreateChefSecretsBucket, ${ChefBucket}, ${ChefSecretsBucket}]
+                STACKNAME=${AWS::StackName}
                 # If we're not bootstrap, sync down the rest of the secrets first before reconfiguring
                 if [ -z "${!BOOTSTRAP_TAGS}" ]; then
                   echo "[INFO] configuring this node as a regular Chef frontend"
-                  aws s3 sync s3://${ChefBucket}/etc_opscode /etc/opscode
+                  aws s3 sync s3://${!BUCKET}/${!STACKNAME}/etc_opscode /etc/opscode
                   mkdir -p /var/opt/opscode/upgrades
                   touch /var/opt/opscode/bootstrapped
-                  aws s3 cp s3://${ChefBucket}/migration-level /var/opt/opscode/upgrades/
+                  aws s3 cp s3://${!BUCKET}/${!STACKNAME}/migration-level /var/opt/opscode/upgrades/
                 else
                   echo "[INFO] configuring this node as a Bootstrap Chef frontend"
                   echo "[INFO] initializing ElasticSearch index manually"
@@ -425,8 +448,8 @@ Resources:
                 # the bootstrap instance should sync files after reconfigure
                 if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                   echo "[INFO] syncing secrets up to S3"
-                  aws s3 sync /etc/opscode s3://${ChefBucket}/etc_opscode
-                  aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${ChefBucket}/
+                  aws s3 sync /etc/opscode s3://${!BUCKET}/${!STACKNAME}/etc_opscode
+                  aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${!BUCKET}/${!STACKNAME}/
                 fi
 
   WaitCondition:
