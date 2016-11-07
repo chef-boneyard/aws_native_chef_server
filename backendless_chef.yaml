@@ -80,7 +80,7 @@ Parameters:
     Description: Allow users to sign themselves up to the chef server? (enter true or false)
     Type: String
   ChefServerIamRole:
-    Description: Supply an IAM Role for the Chef Servers (leave blank to have it created for you)
+    Description: Supply an IAM Role for the Chef Servers (leave blank to have it created for you). NOTE If you supply your own role, you must also provide an S3 Bucket which that role can access
     Type: String
     Default: ''
   ChefSecretsBucket:
@@ -196,8 +196,8 @@ Resources:
         - Action: s3:*
           Effect: Allow
           Resource:
-          - !Join ['', [ 'arn:aws:s3:::', "Fn::If": [CreateChefSecretsBucket, !Ref ChefBucket, !Ref CreateChefSecretsBucket] ]]
-          - !Join ['', [ 'arn:aws:s3:::', "Fn::If": [CreateChefSecretsBucket, !Ref ChefBucket, !Ref CreateChefSecretsBucket], '/*' ]]
+            - !Join ['', [ 'arn:aws:s3:::', !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] ]]
+            - !Join ['', [ 'arn:aws:s3:::', !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket], '/*' ]]
         # Allow ability to list all buckets
         - Action: s3:List*
           Effect: Allow
@@ -431,11 +431,22 @@ Resources:
           commands:
             01_configure_chef_server:
               command: !Sub |
+                set -ex
                 # Determine if we are the bootstrap node
                 INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
                 BOOTSTRAP_TAGS=`aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
-                BUCKET="Fn::If": [CreateChefSecretsBucket, ${ChefBucket}, ${ChefSecretsBucket}]
                 STACKNAME=${AWS::StackName}
+                # Determine if we're using a generated bucket or a provided bucket THE HARD WAY because intrinsic functions don't seem to work
+                # https://forums.aws.amazon.com/thread.jspa?threadID=242702
+                if [ -n "${ChefBucket}" ]; then
+                  # If we generated a bucket, then the ChefBucket variable should exist otherwise it is empty
+                  echo "[INFO] Using the generated S3 Bucket ${ChefBucket}"
+                  BUCKET=${ChefBucket}
+                elif [ -n "${ChefSecretsBucket}" ]; then
+                  # Otherwise a ChefSecretsBucket was provided so we'll use that
+                  echo "[INFO] Using the provided S3 Bucket ${ChefSecretsBucket}"
+                  BUCKET=${ChefSecretsBucket}
+                fi
                 # If we're not bootstrap, sync down the rest of the secrets first before reconfiguring
                 if [ -z "${!BOOTSTRAP_TAGS}" ]; then
                   echo "[INFO] configuring this node as a regular Chef frontend"
@@ -463,7 +474,7 @@ Resources:
     DependsOn: ServerLaunchConfig
     Properties:
       Handle: !Ref WaitHandle
-      Timeout: '2300'
+      Timeout: '1500'
 
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
@@ -505,7 +516,7 @@ Resources:
       EngineVersion: 9.5.4
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
-      DBSubnetGroupName: "Fn:If": [CreateDBSubnetGroup, !Ref DBSubnetGroup, !Ref DBSubnetGroupArn]
+      DBSubnetGroupName: !If [CreateDBSubnetGroup, !Ref DBSubnetGroup, !Ref DBSubnetGroupArn]
       VPCSecurityGroups:
         - !Ref DBSecurityGroup
       PubliclyAccessible: false

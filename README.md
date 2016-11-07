@@ -44,6 +44,10 @@ aws cloudformation create-stack \
 ```
 
 # SSH to your hosts
+
+If you're using a bastion host:
 ```bash
-ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@35.160.211.71" centos@10.42.24.101
+ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@35.160.211.71" -l centos <chef server private ip>
 ```
+
+otherwise just login as `centos` to the private IPs of the chef servers
