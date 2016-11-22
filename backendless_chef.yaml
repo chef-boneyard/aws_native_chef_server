@@ -87,6 +87,9 @@ Parameters:
     Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
     Type: String
     Default: ''
+  ContactEmail:
+    Description: Contact email for Cloudwatch notifications and instance tagging
+    Type: String
 
 Conditions:
   CreateChefServerIamRole:
@@ -127,7 +130,7 @@ Resources:
         Value: success
         PropagateAtLaunch: true
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
         PropagateAtLaunch: true
       VPCZoneIdentifier: !Ref ChefServerSubnets
 
@@ -151,7 +154,7 @@ Resources:
         Value: success
         PropagateAtLaunch: true
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
         PropagateAtLaunch: true
       VPCZoneIdentifier: !Ref ChefServerSubnets
 
@@ -206,6 +209,9 @@ Resources:
         - Action: ec2:DescribeTags
           Effect: Allow
           Resource: "*"
+        - Action: logs:*
+          Effect: Allow
+          Resource: arn:aws:logs:*.*.*
       Roles:
       - !Ref ChefRole
 
@@ -289,7 +295,7 @@ Resources:
       - Key: X-Dept
         Value: success
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
 
   ServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -468,6 +474,15 @@ Resources:
                   aws s3 sync /etc/opscode s3://${!BUCKET}/${!STACKNAME}/etc_opscode
                   aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${!BUCKET}/${!STACKNAME}/
                 fi
+            02_configure_cloudwatch_monitoring:
+              command: !Sub |
+                mkdir /opt/cloudwatch_monitoring
+                cd /opt/cloudwatch_monitoring
+                curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
+                unzip CloudWatchMonitoringScripts-1.2.1.zip
+                rm CloudWatchMonitoringScripts-1.2.1.zip
+                cd aws-scripts-mon
+                crontab -l | { cat; echo "*/5 * * * * ~/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
 
   WaitCondition:
     Type: AWS::CloudFormation::WaitCondition
@@ -526,7 +541,7 @@ Resources:
         - Key: X-Dept
           Value: success
         - Key: X-Contact
-          Value: irving@chef.io
+          Value: !Ref ContactEmail
 
 #########################################################################################
 # ElasticSearch
@@ -566,11 +581,60 @@ Resources:
       - Key: X-Dept
         Value: success
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
 
 
 #########################################################################################
 # Monitoring
 #########################################################################################
+  AlertNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint:
+            !Ref ContactEmail
+          Protocol: email
+
+  DiskSpaceUtilization:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : DiskSpaceUtilization
+      AlarmDescription : Alarms when an disk utilization reaches a specified threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : DiskSpaceUtilization
+      Namespace : System/Linux
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : SampleCount
+      Threshold : 80
+
+  MemoryUtilization:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : MemoryUtilization
+      AlarmDescription : Alarms when an memory utilization reaches a specified threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : MemoryUtilization
+      Namespace : System/Linux
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : SampleCount
+      Threshold : 80
+
+  ELB5XXExceeded:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ELB_5XX_Exceeded
+      AlarmDescription : Alarms when an 5xx requests exceed a specified threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : HTTPCode_ELB_5XX
+      Namespace : AWS/ELB
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : Sum
+      Threshold : 10
 
 Outputs: {}
