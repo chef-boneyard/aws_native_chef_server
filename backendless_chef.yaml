@@ -130,7 +130,7 @@ Resources:
         Value: success
         PropagateAtLaunch: true
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
         PropagateAtLaunch: true
       VPCZoneIdentifier: !Ref ChefServerSubnets
 
@@ -154,7 +154,7 @@ Resources:
         Value: success
         PropagateAtLaunch: true
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
         PropagateAtLaunch: true
       VPCZoneIdentifier: !Ref ChefServerSubnets
 
@@ -295,7 +295,7 @@ Resources:
       - Key: X-Dept
         Value: success
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
 
   ServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -541,7 +541,7 @@ Resources:
         - Key: X-Dept
           Value: success
         - Key: X-Contact
-          Value: irving@chef.io
+          Value: !Ref ContactEmail
 
 #########################################################################################
 # ElasticSearch
