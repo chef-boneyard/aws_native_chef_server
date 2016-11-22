@@ -36,19 +36,18 @@ aws cloudformation create-stack \
   ParameterKey=KeyName,ParameterValue=irving@getchef.com \
   ParameterKey=VPC,ParameterValue=vpc-0012f067 \
   ParameterKey=SSHSecurityGroup,ParameterValue=sg-bf53c1c6 \
-  ParameterKey=PublicSubnetA,ParameterValue=subnet-ff2f279b \
-  ParameterKey=PublicSubnetB,ParameterValue=subnet-6c30121a \
-  ParameterKey=PublicSubnetC,ParameterValue=subnet-0b61fa53 \
-  ParameterKey=PrivateSubnetA,ParameterValue=subnet-fe2f279a \
-  ParameterKey=PrivateSubnetB,ParameterValue=subnet-6d30121b \
-  ParameterKey=PrivateSubnetC,ParameterValue=subnet-0c61fa54 \
-  ParameterKey=NatGatewayIP,ParameterValue=35.160.121.138 \
+  'ParameterKey=LoadBalancerSubnets,ParameterValue="subnet-ff2f279b,subnet-6c30121a,subnet-0b61fa53"' \
+  'ParameterKey=ChefServerSubnets,ParameterValue="subnet-fe2f279a,subnet-6d30121b,subnet-0c61fa54"' \
+  'ParameterKey=NatGatewayIPs,ParameterValue="35.160.121.138"' \
   ParameterKey=InstanceType,ParameterValue=c4.xlarge \
   ParameterKey=DBInstanceClass,ParameterValue=db.m4.xlarge
-
 ```
 
 # SSH to your hosts
+
+If you're using a bastion host:
 ```bash
-ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@35.160.211.71" centos@10.42.24.101
+ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@35.160.211.71" -l centos <chef server private ip>
 ```
+
+otherwise just login as `centos` to the private IPs of the chef servers

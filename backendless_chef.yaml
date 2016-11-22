@@ -2,27 +2,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Cloudformation Backendless Chef v1.0
 
 Parameters:
-  PrivateSubnetA:
-    Description: Choose the Subnet ID to use for the A AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PrivateSubnetB:
-    Description: Choose the Subnet ID to use for the B AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PrivateSubnetC:
-    Description: Choose the Subnet ID to use for the C AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PublicSubnetA:
-    Description: Choose the Subnet ID to use for the A AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PublicSubnetB:
-    Description: Choose the Subnet ID to use for the B AZ to use
-    Type: AWS::EC2::Subnet::Id
-  PublicSubnetC:
-    Description: Choose the Subnet ID to use for the C AZ to use
-    Type: AWS::EC2::Subnet::Id
-  NatGatewayIP:
-    Description: The NAT gateway IP associated with the Private subnets required for ElasticSearch Access
-    Type: String
+  LoadBalancerSubnets:
+    Description: Provide a list of Subnet IDs for the ELB
+    Type: List<AWS::EC2::Subnet::Id>
+  ChefServerSubnets:
+    Description: Provide a list of Subnet IDs for the Chef Servers (must be behind a NAT gateway)
+    Type: List<AWS::EC2::Subnet::Id>
+  NatGatewayIPs:
+    Description: The NAT gateway IP associated with the chef server subnets required for ElasticSearch Access
+    Type: CommaDelimitedList
   DBPassword:
     Description: Enter DB Password
     NoEcho: true
@@ -51,6 +39,10 @@ Parameters:
     Description: Storage size allocated for the database
     Default: 'db.m4.large'
     Type: String
+  DBSubnetGroupArn:
+    Description: Provide a DB Subnet Group ARN (or leave blank to have one created for you)
+    Default: ''
+    Type: String
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
@@ -67,11 +59,10 @@ Parameters:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: AWS::EC2::KeyPair::KeyName
   LicenseCount:
-    Default: '999999'
+    Default: '25'
     Description: Enter how many licenses you have purchased
     Type: String
   SSHSecurityGroup:
-    Default: ''
     Description: Select Security Group for SSH Access
     Type: AWS::EC2::SecurityGroup::Id
   SSLCertificateARN:
@@ -81,6 +72,29 @@ Parameters:
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
+  DisableSignup:
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'false'
+    Description: Allow users to sign themselves up to the chef server? (enter true or false)
+    Type: String
+  ChefServerIamRole:
+    Description: Supply an IAM Role for the Chef Servers (leave blank to have it created for you). NOTE If you supply your own role, you must also provide an S3 Bucket which that role can access
+    Type: String
+    Default: ''
+  ChefSecretsBucket:
+    Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
+    Type: String
+    Default: ''
+
+Conditions:
+  CreateChefServerIamRole:
+    !Equals [ !Ref ChefServerIamRole, '' ]
+  CreateChefSecretsBucket:
+    !Equals [ !Ref ChefSecretsBucket, '' ]
+  CreateDBSubnetGroup:
+    !Equals [ !Ref DBSubnetGroupArn, '' ]
 
 Mappings:
   AWSRegion2AMI:
@@ -115,10 +129,7 @@ Resources:
       - Key: X-Contact
         Value: irving@chef.io
         PropagateAtLaunch: true
-      VPCZoneIdentifier:
-      - !Ref PrivateSubnetA
-      - !Ref PrivateSubnetB
-      - !Ref PrivateSubnetC
+      VPCZoneIdentifier: !Ref ChefServerSubnets
 
   FrontendAutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -142,12 +153,10 @@ Resources:
       - Key: X-Contact
         Value: irving@chef.io
         PropagateAtLaunch: true
-      VPCZoneIdentifier:
-      - !Ref PrivateSubnetA
-      - !Ref PrivateSubnetB
-      - !Ref PrivateSubnetC
+      VPCZoneIdentifier: !Ref ChefServerSubnets
 
   ChefBucket:
+    Condition: CreateChefSecretsBucket
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
@@ -158,9 +167,10 @@ Resources:
     Properties:
       Path: /
       Roles:
-      - !Ref ChefRole
+      - !If [CreateChefServerIamRole, !Ref ChefRole, !Ref ChefServerIamRole]
 
   ChefRole:
+    Condition: CreateChefServerIamRole
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -175,20 +185,24 @@ Resources:
       Path: /
 
   RolePolicies:
+    Condition: CreateChefServerIamRole
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: chef-s3
+      PolicyName: !Sub ${AWS::StackName}-ChefServer-Policy
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
+        # Allow all actions to one bucket (the supplied one, or the one you provided)
         - Action: s3:*
           Effect: Allow
           Resource:
-          - !Sub 'arn:aws:s3:::${ChefBucket}'
-          - !Sub 'arn:aws:s3:::${ChefBucket}/*'
+            - !Join ['', [ 'arn:aws:s3:::', !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] ]]
+            - !Join ['', [ 'arn:aws:s3:::', !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket], '/*' ]]
+        # Allow ability to list all buckets
         - Action: s3:List*
           Effect: Allow
           Resource: arn:aws:s3:::*
+        # Allow instances to read their own tags (needed for setup script below)
         - Action: ec2:DescribeTags
           Effect: Allow
           Resource: "*"
@@ -213,14 +227,6 @@ Resources:
         IpProtocol: tcp
         SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
         ToPort: '443'
-      - FromPort: '443'
-        IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-        ToPort: '9090'
-      - FromPort: '80'
-        IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-        ToPort: '9090'
       - FromPort: '22'
         IpProtocol: tcp
         SourceSecurityGroupId: !Ref SSHSecurityGroup
@@ -276,10 +282,7 @@ Resources:
         SSLCertificateId: !Ref SSLCertificateARN
       SecurityGroups:
       - !Ref LoadBalancerSecurityGroup
-      Subnets:
-      - !Ref PublicSubnetA
-      - !Ref PublicSubnetB
-      - !Ref PublicSubnetC
+      Subnets: !Ref LoadBalancerSubnets
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-elb
@@ -326,9 +329,12 @@ Resources:
         config:
           packages:
             rpm:
-              chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.9.1-1.el7.x86_64.rpm
+              chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.10.0-1.el7.x86_64.rpm
               chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.4-1.el7.x86_64.rpm
           files:
+            /etc/chef-manage/manage.rb:
+              content: !Sub
+                disable_sign_up ${DisableSignup}
             /etc/opscode/chef-server.rb:
               content: !Sub |
                 api_fqdn '${PrimaryElasticLoadBalancer.DNSName}'.downcase
@@ -425,16 +431,29 @@ Resources:
           commands:
             01_configure_chef_server:
               command: !Sub |
+                set -ex
                 # Determine if we are the bootstrap node
                 INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
                 BOOTSTRAP_TAGS=`aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
+                STACKNAME=${AWS::StackName}
+                # Determine if we're using a generated bucket or a provided bucket THE HARD WAY because intrinsic functions don't seem to work
+                # https://forums.aws.amazon.com/thread.jspa?threadID=242702
+                if [ -n "${ChefBucket}" ]; then
+                  # If we generated a bucket, then the ChefBucket variable should exist otherwise it is empty
+                  echo "[INFO] Using the generated S3 Bucket ${ChefBucket}"
+                  BUCKET=${ChefBucket}
+                elif [ -n "${ChefSecretsBucket}" ]; then
+                  # Otherwise a ChefSecretsBucket was provided so we'll use that
+                  echo "[INFO] Using the provided S3 Bucket ${ChefSecretsBucket}"
+                  BUCKET=${ChefSecretsBucket}
+                fi
                 # If we're not bootstrap, sync down the rest of the secrets first before reconfiguring
                 if [ -z "${!BOOTSTRAP_TAGS}" ]; then
                   echo "[INFO] configuring this node as a regular Chef frontend"
-                  aws s3 sync s3://${ChefBucket}/etc_opscode /etc/opscode
+                  aws s3 sync s3://${!BUCKET}/${!STACKNAME}/etc_opscode /etc/opscode
                   mkdir -p /var/opt/opscode/upgrades
                   touch /var/opt/opscode/bootstrapped
-                  aws s3 cp s3://${ChefBucket}/migration-level /var/opt/opscode/upgrades/
+                  aws s3 cp s3://${!BUCKET}/${!STACKNAME}/migration-level /var/opt/opscode/upgrades/
                 else
                   echo "[INFO] configuring this node as a Bootstrap Chef frontend"
                   echo "[INFO] initializing ElasticSearch index manually"
@@ -446,8 +465,8 @@ Resources:
                 # the bootstrap instance should sync files after reconfigure
                 if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                   echo "[INFO] syncing secrets up to S3"
-                  aws s3 sync /etc/opscode s3://${ChefBucket}/etc_opscode
-                  aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${ChefBucket}/
+                  aws s3 sync /etc/opscode s3://${!BUCKET}/${!STACKNAME}/etc_opscode
+                  aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${!BUCKET}/${!STACKNAME}/
                 fi
 
   WaitCondition:
@@ -455,7 +474,7 @@ Resources:
     DependsOn: ServerLaunchConfig
     Properties:
       Handle: !Ref WaitHandle
-      Timeout: '2300'
+      Timeout: '1500'
 
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
@@ -475,13 +494,11 @@ Resources:
           SourceSecurityGroupId: !Ref FrontendSecurityGroup
 
   DBSubnetGroup:
+    Condition: CreateDBSubnetGroup
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: RDS DB subnet group
-      SubnetIds:
-        - !Ref PrivateSubnetA
-        - !Ref PrivateSubnetB
-        - !Ref PrivateSubnetC
+      SubnetIds: !Ref ChefServerSubnets
 
   DBPostgres:
     Type: AWS::RDS::DBInstance
@@ -499,7 +516,7 @@ Resources:
       EngineVersion: 9.5.4
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
-      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBSubnetGroupName: !If [CreateDBSubnetGroup, !Ref DBSubnetGroup, !Ref DBSubnetGroupArn]
       VPCSecurityGroups:
         - !Ref DBSecurityGroup
       PubliclyAccessible: false
@@ -540,8 +557,7 @@ Resources:
             Action: "es:*"
             Condition:
               IpAddress:
-                "aws:sourceIp":
-                  - !Ref NatGatewayIP
+                "aws:sourceIp": !Ref NatGatewayIPs
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
       Tags:
