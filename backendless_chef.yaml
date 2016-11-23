@@ -514,8 +514,7 @@ Resources:
                 curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
                 unzip CloudWatchMonitoringScripts-1.2.1.zip
                 rm CloudWatchMonitoringScripts-1.2.1.zip
-                cd aws-scripts-mon
-                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
+                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
 
   WaitCondition:
     Type: AWS::CloudFormation::WaitCondition
@@ -637,10 +636,11 @@ Resources:
       MetricName : DiskSpaceUtilization
       Namespace : System/Linux
       ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 1
+      EvaluationPeriods : 2
       Period : 300
-      Statistic : SampleCount
-      Threshold : 80
+      Statistic : Average
+      Threshold : 90
+      Unit: Percent
 
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm
@@ -653,8 +653,9 @@ Resources:
       ComparisonOperator : GreaterThanOrEqualToThreshold
       EvaluationPeriods : 2
       Period : 300
-      Statistic : SampleCount
+      Statistic : Average
       Threshold : 80
+      Unit: Percent
 
   ELB5XXExceeded:
     Type: AWS::CloudWatch::Alarm
@@ -669,6 +670,10 @@ Resources:
       Period : 300
       Statistic : Sum
       Threshold : 10
+      Dimensions:
+        -
+          Name: LoadBalancerName
+          Value: !Ref PrimaryElasticLoadBalancer
 
   CPUAlarmHigh:
     Type: AWS::CloudWatch::Alarm
@@ -700,10 +705,155 @@ Resources:
       EvaluationPeriods : 2
       Period : 300
       Statistic : Average
-      Threshold : 60
+      Threshold : 50
       Dimensions:
         -
           Name: AutoScalingGroupName
           Value: !Ref FrontendAutoScaleGroup
+
+  RDSWriteLatency:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : RDSWriteLatency
+      AlarmDescription : Alarm when RDS write latency is greater than 500ms.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : WriteLatency
+      Namespace : AWS/RDS
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : Average
+      Threshold : 500
+      Dimensions:
+        -
+          Name: DBInstanceIdentifier
+          Value: !Ref DBPostgres
+
+  RDSReadLatency:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : RDSReadLatency
+      AlarmDescription : Alarm when RDS write latency is greater than a 500ms.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : ReadLatency
+      Namespace : AWS/RDS
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : Average
+      Threshold : 500
+      Dimensions:
+        -
+          Name: DBInstanceIdentifier
+          Value: !Ref DBPostgres
+
+  ESClusterRed:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESClusterRed
+      AlarmDescription : Alarm when both primary and replica shards are down.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : ClusterStatus.red
+      Namespace : AWS/ES
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : Minimum
+      Threshold : 1
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
+
+
+  ESClusterYellow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESClusterYellow
+      AlarmDescription : Alarm when replica shards are down for 15 minutes.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : ClusterStatus.yellow
+      Namespace : AWS/ES
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 3
+      Period : 300
+      Statistic : Minimum
+      Threshold : 1
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESFreeStorageSpace:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESFreeStorageSpace
+      AlarmDescription : Alarm when free storage space on any node falls below threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : FreeStorageSpace
+      Namespace : AWS/ES
+      ComparisonOperator : LessThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      # Reports when any node in the cluster falls below the threshold.
+      Statistic : Minimum
+      Threshold : 5000
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESCPUUtilization:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESCPUUtilization
+      AlarmDescription : Alarm when all nodes' average CPU load passes threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : CPUUtilization
+      Namespace : AWS/ES
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : Average
+      Threshold : 80
+      Unit: Percent
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESJVMMemoryPressure:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESJVMMemoryPressure
+      AlarmDescription : Alarm when maximum percentage of the Java heap used for all data nodes in the cluster exceeds threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : JVMMemoryPressure
+      Namespace : AWS/ES
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : Maximum
+      Threshold : 90
+      Unit: Percent
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
 
 Outputs: {}
