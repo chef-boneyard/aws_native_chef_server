@@ -209,6 +209,15 @@ Resources:
         - Action: ec2:DescribeTags
           Effect: Allow
           Resource: "*"
+        - Action: cloudwatch:PutMetricData
+          Effect: Allow
+          Resource: "*"
+        - Action: cloudwatch:GetMetricStatistics
+          Effect: Allow
+          Resource: "*"
+        - Action: cloudwatch:ListMetrics
+          Effect: Allow
+          Resource: "*"
         - Action: logs:*
           Effect: Allow
           Resource: arn:aws:logs:*.*.*
@@ -337,6 +346,15 @@ Resources:
             rpm:
               chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.10.0-1.el7.x86_64.rpm
               chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.4-1.el7.x86_64.rpm
+            yum:
+              perl: []
+              perl-Switch: []
+              perl-DateTime: []
+              perl-Sys-Syslog: []
+              perl-LWP-Protocol-https: []
+              perl-Digest-SHA: []
+              zip: []
+              unzip: []
           files:
             /etc/chef-manage/manage.rb:
               content: !Sub
@@ -481,7 +499,7 @@ Resources:
                 unzip CloudWatchMonitoringScripts-1.2.1.zip
                 rm CloudWatchMonitoringScripts-1.2.1.zip
                 cd aws-scripts-mon
-                crontab -l | { cat; echo "*/5 * * * * ~/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
+                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
 
   WaitCondition:
     Type: AWS::CloudFormation::WaitCondition
