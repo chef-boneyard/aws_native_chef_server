@@ -87,6 +87,9 @@ Parameters:
     Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
     Type: String
     Default: ''
+  ContactEmail:
+    Description: Contact email for Cloudwatch notifications and instance tagging
+    Type: String
 
 Conditions:
   CreateChefServerIamRole:
@@ -127,7 +130,7 @@ Resources:
         Value: success
         PropagateAtLaunch: true
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
         PropagateAtLaunch: true
       VPCZoneIdentifier: !Ref ChefServerSubnets
 
@@ -151,9 +154,25 @@ Resources:
         Value: success
         PropagateAtLaunch: true
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
         PropagateAtLaunch: true
       VPCZoneIdentifier: !Ref ChefServerSubnets
+
+  FrontendAutoScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref FrontendAutoScaleGroup
+      Cooldown: 60
+      ScalingAdjustment: 1
+
+  FrontendAutoScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref FrontendAutoScaleGroup
+      Cooldown: 60
+      ScalingAdjustment: -1
 
   ChefBucket:
     Condition: CreateChefSecretsBucket
@@ -206,6 +225,18 @@ Resources:
         - Action: ec2:DescribeTags
           Effect: Allow
           Resource: "*"
+        - Action: cloudwatch:PutMetricData
+          Effect: Allow
+          Resource: "*"
+        - Action: cloudwatch:GetMetricStatistics
+          Effect: Allow
+          Resource: "*"
+        - Action: cloudwatch:ListMetrics
+          Effect: Allow
+          Resource: "*"
+        - Action: logs:*
+          Effect: Allow
+          Resource: arn:aws:logs:*.*.*
       Roles:
       - !Ref ChefRole
 
@@ -289,7 +320,7 @@ Resources:
       - Key: X-Dept
         Value: success
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
 
   ServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -321,7 +352,7 @@ Resources:
           }
           export -f error_exit
           # Execute AWS::CloudFormation::Init
-          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region} || error_exit 'Failed to run cfn-init'
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
           # All is well so signal success and let CF know wait function is complete
           /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}'
     Metadata:
@@ -331,6 +362,15 @@ Resources:
             rpm:
               chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.10.0-1.el7.x86_64.rpm
               chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.4-1.el7.x86_64.rpm
+            yum:
+              perl: []
+              perl-Switch: []
+              perl-DateTime: []
+              perl-Sys-Syslog: []
+              perl-LWP-Protocol-https: []
+              perl-Digest-SHA: []
+              zip: []
+              unzip: []
           files:
             /etc/chef-manage/manage.rb:
               content: !Sub
@@ -431,7 +471,6 @@ Resources:
           commands:
             01_configure_chef_server:
               command: !Sub |
-                set -ex
                 # Determine if we are the bootstrap node
                 INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
                 BOOTSTRAP_TAGS=`aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
@@ -468,6 +507,14 @@ Resources:
                   aws s3 sync /etc/opscode s3://${!BUCKET}/${!STACKNAME}/etc_opscode
                   aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${!BUCKET}/${!STACKNAME}/
                 fi
+            02_configure_cloudwatch_monitoring:
+              command: !Sub |
+                mkdir /opt/cloudwatch_monitoring
+                cd /opt/cloudwatch_monitoring
+                curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
+                unzip CloudWatchMonitoringScripts-1.2.1.zip
+                rm CloudWatchMonitoringScripts-1.2.1.zip
+                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
 
   WaitCondition:
     Type: AWS::CloudFormation::WaitCondition
@@ -526,7 +573,7 @@ Resources:
         - Key: X-Dept
           Value: success
         - Key: X-Contact
-          Value: irving@chef.io
+          Value: !Ref ContactEmail
 
 #########################################################################################
 # ElasticSearch
@@ -566,11 +613,247 @@ Resources:
       - Key: X-Dept
         Value: success
       - Key: X-Contact
-        Value: irving@chef.io
+        Value: !Ref ContactEmail
 
 
 #########################################################################################
 # Monitoring
 #########################################################################################
+  AlertNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint:
+            !Ref ContactEmail
+          Protocol: email
+
+  DiskSpaceUtilization:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : DiskSpaceUtilization
+      AlarmDescription : Alarms when an disk utilization reaches a specified threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : DiskSpaceUtilization
+      Namespace : System/Linux
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : Average
+      Threshold : 90
+      Unit: Percent
+
+  MemoryUtilization:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : MemoryUtilization
+      AlarmDescription : Alarms when an memory utilization reaches a specified threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : MemoryUtilization
+      Namespace : System/Linux
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : Average
+      Threshold : 80
+      Unit: Percent
+
+  ELB5XXExceeded:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ELB_5XX_Exceeded
+      AlarmDescription : Alarms when an 5xx requests exceed a specified threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : HTTPCode_ELB_5XX
+      Namespace : AWS/ELB
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : Sum
+      Threshold : 10
+      Dimensions:
+        -
+          Name: LoadBalancerName
+          Value: !Ref PrimaryElasticLoadBalancer
+
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : CPUAlarmHigh
+      AlarmDescription : Scale up when CPU > 60% for 10 minutes
+      AlarmActions : [!Ref FrontendAutoScaleUpPolicy]
+      MetricName : CPUUtilization
+      Namespace : AWS/EC2
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : Average
+      Threshold : 60
+      Dimensions:
+        -
+          Name: AutoScalingGroupName
+          Value: !Ref FrontendAutoScaleGroup
+
+  CPUAlarmLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : CPUAlarmLow
+      AlarmDescription : Scale down when CPU < 50% for 10 minutes
+      AlarmActions : [!Ref FrontendAutoScaleDownPolicy]
+      MetricName : CPUUtilization
+      Namespace : AWS/EC2
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : Average
+      Threshold : 50
+      Dimensions:
+        -
+          Name: AutoScalingGroupName
+          Value: !Ref FrontendAutoScaleGroup
+
+  RDSWriteLatency:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : RDSWriteLatency
+      AlarmDescription : Alarm when RDS write latency is greater than 500ms.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : WriteLatency
+      Namespace : AWS/RDS
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : Average
+      Threshold : 500
+      Dimensions:
+        -
+          Name: DBInstanceIdentifier
+          Value: !Ref DBPostgres
+
+  RDSReadLatency:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : RDSReadLatency
+      AlarmDescription : Alarm when RDS write latency is greater than a 500ms.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : ReadLatency
+      Namespace : AWS/RDS
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : Average
+      Threshold : 500
+      Dimensions:
+        -
+          Name: DBInstanceIdentifier
+          Value: !Ref DBPostgres
+
+  ESClusterRed:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESClusterRed
+      AlarmDescription : Alarm when both primary and replica shards are down.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : ClusterStatus.red
+      Namespace : AWS/ES
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      Statistic : Minimum
+      Threshold : 1
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
+
+
+  ESClusterYellow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESClusterYellow
+      AlarmDescription : Alarm when replica shards are down for 15 minutes.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : ClusterStatus.yellow
+      Namespace : AWS/ES
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 3
+      Period : 300
+      Statistic : Minimum
+      Threshold : 1
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESFreeStorageSpace:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESFreeStorageSpace
+      AlarmDescription : Alarm when free storage space on any node falls below threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : FreeStorageSpace
+      Namespace : AWS/ES
+      ComparisonOperator : LessThanOrEqualToThreshold
+      EvaluationPeriods : 1
+      Period : 300
+      # Reports when any node in the cluster falls below the threshold.
+      Statistic : Minimum
+      Threshold : 5000
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESCPUUtilization:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESCPUUtilization
+      AlarmDescription : Alarm when all nodes' average CPU load passes threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : CPUUtilization
+      Namespace : AWS/ES
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : Average
+      Threshold : 80
+      Unit: Percent
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESJVMMemoryPressure:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName : ESJVMMemoryPressure
+      AlarmDescription : Alarm when maximum percentage of the Java heap used for all data nodes in the cluster exceeds threshold.
+      AlarmActions : [!Ref AlertNotificationTopic]
+      MetricName : JVMMemoryPressure
+      Namespace : AWS/ES
+      ComparisonOperator : GreaterThanOrEqualToThreshold
+      EvaluationPeriods : 2
+      Period : 300
+      Statistic : Maximum
+      Threshold : 90
+      Unit: Percent
+      Dimensions:
+        -
+          Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        -
+          Name: ClientId
+          Value: !Ref AWS::AccountId
 
 Outputs: {}
