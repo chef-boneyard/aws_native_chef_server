@@ -51,3 +51,13 @@ ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@35.160.211.71" -l centos <chef ser
 ```
 
 otherwise just login as `centos` to the private IPs of the chef servers
+
+
+# Credits
+
+This project was inspired by the work of [Levi Smith](https://github.com/TheFynx) of the Hearst Automation Team and published at [HearstAT/cfn_backendless_chef](https://github.com/HearstAT/cfn_backendless_chef).  Thanks Levi!
+
+Contributors:
+- Irving Popovetsky
+- Joshua Hudson
+- Levi Smith
