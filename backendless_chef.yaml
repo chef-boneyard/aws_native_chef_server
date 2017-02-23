@@ -360,7 +360,7 @@ Resources:
         config:
           packages:
             rpm:
-              chef-server-core: https://packages.chef.io/stable/el/7/chef-server-core-12.10.0-1.el7.x86_64.rpm
+              chef-server-core: https://packages.chef.io/files/current/chef-server/12.13.1+20170221210120/el/7/chef-server-core-12.13.1+20170221210120-1.el7.x86_64.rpm
               chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.4-1.el7.x86_64.rpm
             yum:
               perl: []
@@ -401,73 +401,14 @@ Resources:
                 opscode_erchef['search_queue_mode'] = 'batch'
                 opscode_solr4['external'] = true
                 opscode_solr4['external_url'] = 'https://${ElasticsearchDomain.DomainEndpoint}'
+                opscode_solr4['elasticsearch_shard_count'] = ${ElasticSearchShardCount}
+                opscode_solr4['elasticsearch_replica_count'] = ${ElasticSearchReplicaCount}
                 bookshelf['storage_type'] = :sql
                 rabbitmq['enable'] = false
                 rabbitmq['management_enabled'] = false
                 rabbitmq['queue_length_monitor_enabled'] = false
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
-            /tmp/index_create.json:
-              # NOTE: we're overriding the default elasticsearch index settings in order to
-              #  set number_of_shards and number_of_replicas to a more optimal number for 3 ES hosts
-              content: !Sub |
-                {
-                  "settings": {
-                    "analysis": {
-                      "analyzer": {
-                        "default": {
-                          "type": "whitespace"
-                        }
-                      }
-                    },
-                    "number_of_shards": ${ElasticSearchShardCount},
-                    "number_of_replicas": ${ElasticSearchReplicaCount}
-                  },
-                  "mappings": {
-                    "object": {
-                      "_source": {
-                        "enabled": false
-                      },
-                      "_all": {
-                        "enabled": false
-                      },
-                      "properties": {
-                        "X_CHEF_database_CHEF_X": {
-                          "type": "string",
-                          "index": "not_analyzed",
-                          "norms": {
-                            "enabled": false
-                          }
-                        },
-                        "X_CHEF_type_CHEF_X": {
-                          "type": "string",
-                          "index": "not_analyzed",
-                          "norms": {
-                            "enabled": false
-                          }
-                        },
-                        "X_CHEF_id_CHEF_X": {
-                          "type": "string",
-                          "index": "not_analyzed",
-                          "norms": {
-                            "enabled": false
-                          }
-                        },
-                        "data_bag": {
-                          "type": "string",
-                          "index": "not_analyzed",
-                          "norms": {
-                            "enabled": false
-                          }
-                        },
-                        "content": {
-                          "type": "string",
-                          "index": "analyzed"
-                        }
-                      }
-                    }
-                  }
-                }
           commands:
             01_configure_chef_server:
               command: !Sub |
@@ -495,8 +436,6 @@ Resources:
                   aws s3 cp s3://${!BUCKET}/${!STACKNAME}/migration-level /var/opt/opscode/upgrades/
                 else
                   echo "[INFO] configuring this node as a Bootstrap Chef frontend"
-                  echo "[INFO] initializing ElasticSearch index manually"
-                  curl -XPUT https://${ElasticsearchDomain.DomainEndpoint}/chef/ -d @/tmp/index_create.json
                 fi
                 # Configure the chef server
                 chef-server-ctl reconfigure --accept-license
