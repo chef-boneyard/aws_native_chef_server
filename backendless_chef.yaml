@@ -87,6 +87,9 @@ Parameters:
     Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
     Type: String
     Default: ''
+  ContactDept:
+    Description: Contact department for billing purposes
+    Type: String
   ContactEmail:
     Description: Contact email for Cloudwatch notifications and instance tagging
     Type: String
@@ -102,11 +105,11 @@ Conditions:
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      centos: ami-a2f1aeb5
+      centos: ami-a88c47be
     us-west-1:
-      centos: ami-4895de28
+      centos: ami-f0481790
     us-west-2:
-      centos: ami-e6963186
+      centos: ami-6bb7310b
 
 Resources:
   # The first chef server we launch is the 'bootstrap' which needs to come up first and set schema before the rest
@@ -127,7 +130,7 @@ Resources:
         Value: !Sub ${AWS::StackName}-bootstrap-frontend
         PropagateAtLaunch: true
       - Key: X-Dept
-        Value: success
+        Value: !Ref ContactDept
         PropagateAtLaunch: true
       - Key: X-Contact
         Value: !Ref ContactEmail
