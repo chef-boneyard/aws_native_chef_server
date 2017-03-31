@@ -29,25 +29,27 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
   --parameters \
-  ParameterKey=SSLCertificateARN,ParameterValue=arn:aws:iam::862552916454:server-certificate/ip-ub-backend1-trusty-aws-1164570181.us-west-2.elb.amazonaws.com \
+  ParameterKey=SSLCertificateARN,ParameterValue=arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f \
   ParameterKey=LicenseCount,ParameterValue=999999 \
   ParameterKey=DBUser,ParameterValue=chefadmin \
-  ParameterKey=DBPassword,ParameterValue=VerySecure \
-  ParameterKey=KeyName,ParameterValue=irving@getchef.com \
-  ParameterKey=VPC,ParameterValue=vpc-0012f067 \
-  ParameterKey=SSHSecurityGroup,ParameterValue=sg-bf53c1c6 \
-  'ParameterKey=LoadBalancerSubnets,ParameterValue="subnet-ff2f279b,subnet-6c30121a,subnet-0b61fa53"' \
-  'ParameterKey=ChefServerSubnets,ParameterValue="subnet-fe2f279a,subnet-6d30121b,subnet-0c61fa54"' \
-  'ParameterKey=NatGatewayIPs,ParameterValue="35.160.121.138"' \
-  ParameterKey=InstanceType,ParameterValue=c4.xlarge \
-  ParameterKey=DBInstanceClass,ParameterValue=db.m4.xlarge
+  ParameterKey=DBPassword,ParameterValue=SuperSecurePassword \
+  ParameterKey=KeyName,ParameterValue=irving \
+  ParameterKey=VPC,ParameterValue=vpc-fa58989d \
+  ParameterKey=SSHSecurityGroup,ParameterValue=sg-bddcfbc4 \
+  'ParameterKey=LoadBalancerSubnets,ParameterValue="subnet-63c62b04,subnet-dc1611aa,subnet-0247365a"' \
+  'ParameterKey=ChefServerSubnets,ParameterValue="subnet-66c62b01,subnet-df1611a9,subnet-01473659"' \
+  'ParameterKey=NatGatewayIPs,ParameterValue="35.162.132.208"' \
+  ParameterKey=InstanceType,ParameterValue=c4.large \
+  ParameterKey=DBInstanceClass,ParameterValue=db.m4.large \
+  ParameterKey=ContactEmail,ParameterValue=irving@chef.io \
+  ParameterKey=ContactDept,ParameterValue=success
 ```
 
 # SSH to your hosts
 
 If you're using a bastion host:
 ```bash
-ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@35.160.211.71" -l centos <chef server private ip>
+ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@bastion" -l centos <chef server private ip>
 ```
 
 otherwise just login as `centos` to the private IPs of the chef servers
