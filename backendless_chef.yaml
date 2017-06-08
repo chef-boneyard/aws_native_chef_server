@@ -105,11 +105,11 @@ Conditions:
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      centos: ami-a88c47be
+      centos: ami-b8f9acae
     us-west-1:
-      centos: ami-f0481790
+      centos: ami-a21231c2
     us-west-2:
-      centos: ami-6bb7310b
+      centos: ami-8ee08dee
 
 Resources:
   # The first chef server we launch is the 'bootstrap' which needs to come up first and set schema before the rest
@@ -363,8 +363,8 @@ Resources:
         config:
           packages:
             rpm:
-              chef-server-core: https://packages.chef.io/files/current/chef-server/12.13.1+20170221210120/el/7/chef-server-core-12.13.1+20170221210120-1.el7.x86_64.rpm
-              chef-manage: https://packages.chef.io/stable/el/7/chef-manage-2.4.4-1.el7.x86_64.rpm
+              chef-server-core: https://packages.chef.io/files/stable/chef-server/12.15.7/el/7/chef-server-core-12.15.7-1.el7.x86_64.rpm
+              chef-manage: https://packages.chef.io/files/stable/chef-manage/2.5.3/el/7/chef-manage-2.5.3-1.el7.x86_64.rpm
             yum:
               perl: []
               perl-Switch: []
