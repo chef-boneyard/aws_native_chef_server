@@ -2,11 +2,6 @@
 #Requirements:
 * A VPC with 3 public and 3 private subnets
   * the private subnets must be behind a NAT gateway (or multiple)
-* AMI: It's recommended that you use the AMIs supplied in the template, which are CentOS 7 based and come from here: [github.com/irvingpop/packer-chef-highperf-centos7-ami](https://github.com/irvingpop/packer-chef-highperf-centos7-ami)
-  * If you use your own, the following things need to be installed:
-    - awscli (`aws` command)
-    - Cloudformation Helper Scripts (`cfn-init` and `cfn-signal` commands)
-    - NTP (installed and enabled)
 
 
 #Creating a VPC to spec
@@ -49,7 +44,7 @@ aws cloudformation create-stack \
 
 If you're using a bastion host:
 ```bash
-ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@bastion" -l centos <chef server private ip>
+ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@bastion" -l ec2-user <chef server private ip>
 ```
 
 otherwise just login as `centos` to the private IPs of the chef servers

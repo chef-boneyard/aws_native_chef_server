@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Cloudformation Backendless Chef v1.0
+Description: Cloudformation Backendless Chef v2.0
 
 Parameters:
   LoadBalancerSubnets:
@@ -102,17 +102,23 @@ Conditions:
   CreateDBSubnetGroup:
     !Equals [ !Ref DBSubnetGroupArn, '' ]
 
+# Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      centos: ami-b8f9acae
-    us-west-1:
-      centos: ami-a21231c2
+      AMI: ami-a4c7edb2
+    us-east-2:
+      AMI: ami-8a7859ef
     us-west-2:
-      centos: ami-8ee08dee
+      AMI: ami-6df1e514
+    us-west-1:
+      AMI: ami-327f5352
 
 Resources:
-  # The first chef server we launch is the 'bootstrap' which needs to come up first and set schema before the rest
+#########################################################################################
+# Frontend Autoscale Groups
+#########################################################################################
+# The first chef server we launch is the 'bootstrap' which needs to come up first and set schema before the rest
   BootstrapAutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn:
@@ -137,6 +143,7 @@ Resources:
         PropagateAtLaunch: true
       VPCZoneIdentifier: !Ref ChefServerSubnets
 
+# The rest of the servers work in a scalable ASG based on CPU load
   FrontendAutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn:
@@ -154,7 +161,7 @@ Resources:
         Value: !Sub ${AWS::StackName}-frontend
         PropagateAtLaunch: true
       - Key: X-Dept
-        Value: success
+        Value: !Ref ContactDept
         PropagateAtLaunch: true
       - Key: X-Contact
         Value: !Ref ContactEmail
@@ -321,7 +328,7 @@ Resources:
       - Key: Name
         Value: !Sub ${AWS::StackName}-elb
       - Key: X-Dept
-        Value: success
+        Value: !Ref ContactDept
       - Key: X-Contact
         Value: !Ref ContactEmail
 
@@ -331,7 +338,7 @@ Resources:
       AssociatePublicIpAddress: true
       EbsOptimized: true
       BlockDeviceMappings:
-      - DeviceName: /dev/sda1
+      - DeviceName: /dev/xvda
         Ebs:
           VolumeSize: 20
           VolumeType: gp2
@@ -340,7 +347,7 @@ Resources:
       ImageId: !FindInMap
         - AWSRegion2AMI
         - !Ref AWS::Region
-        - centos
+        - AMI
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       SecurityGroups:
@@ -363,8 +370,8 @@ Resources:
         config:
           packages:
             rpm:
-              chef-server-core: https://packages.chef.io/files/stable/chef-server/12.15.7/el/7/chef-server-core-12.15.7-1.el7.x86_64.rpm
-              chef-manage: https://packages.chef.io/files/stable/chef-manage/2.5.3/el/7/chef-manage-2.5.3-1.el7.x86_64.rpm
+              chef-server-core: https://packages.chef.io/files/stable/chef-server/12.15.8/el/7/chef-server-core-12.15.8-1.el7.x86_64.rpm
+              chef-manage: https://packages.chef.io/files/stable/chef-manage/2.5.4/el/7/chef-manage-2.5.4-1.el7.x86_64.rpm
             yum:
               perl: []
               perl-Switch: []
@@ -502,7 +509,7 @@ Resources:
       StorageType: io1
       MultiAZ: true
       Engine: postgres
-      EngineVersion: 9.5.4
+      EngineVersion: 9.6.3
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
       DBSubnetGroupName: !If [CreateDBSubnetGroup, !Ref DBSubnetGroup, !Ref DBSubnetGroupArn]
@@ -513,7 +520,7 @@ Resources:
         - Key: Name
           Value: !Sub ${AWS::StackName}-pgdb
         - Key: X-Dept
-          Value: success
+          Value: !Ref ContactDept
         - Key: X-Contact
           Value: !Ref ContactEmail
 
@@ -553,7 +560,7 @@ Resources:
       - Key: Name
         Value: !Sub ${AWS::StackName}-ES
       - Key: X-Dept
-        Value: success
+        Value: !Ref ContactDept
       - Key: X-Contact
         Value: !Ref ContactEmail
 
