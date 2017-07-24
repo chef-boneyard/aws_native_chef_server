@@ -1,33 +1,47 @@
 #!/bin/bash -x
 
 # Provided variables that are required: STACKNAME, BUCKET, AWS_REGION
+test -n "${STACKNAME}" || exit 1
+test -n "${BUCKET}" || exit 1
+test -n "${AWS_REGION}" || exit 1
+# test -n "${WAITHANDLE}" || exit 1
 
 # Determine if we are the bootstrap node
 INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
 BOOTSTRAP_TAGS=`aws ec2 describe-tags --region $AWS_REGION --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
 
 # Check if the configs already exist
-CONFIGS_EXIST=`aws s3 sync s3://${BUCKET}/${STACKNAME}/ | grep migration-level`
+CONFIGS_EXIST=`aws s3 ls s3://${BUCKET}/${STACKNAME}/ | grep migration-level`
 
-download_config () {
+# from this point on, exit on any errors and notify the waithandle that something bad happened
+set -e
+function error_exit {
+  echo "Error on line $1"
+  /opt/aws/bin/cfn-signal -e 1 -r "Error on line $1" "${WAITHANDLE}"
+  exit 1
+}
+trap 'error_exit $LINENO' ERR
+
+function download_config () {
   aws s3 sync s3://${BUCKET}/${STACKNAME}/etc_opscode /etc/opscode
   mkdir -p /var/opt/opscode/upgrades
   touch /var/opt/opscode/bootstrapped
   aws s3 cp s3://${BUCKET}/${STACKNAME}/migration-level /var/opt/opscode/upgrades/
 }
 
-upload_config () {
+function upload_config () {
   aws s3 sync /etc/opscode s3://${BUCKET}/${STACKNAME}/etc_opscode
   aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/${STACKNAME}/
 }
 
-server_reconfigure () {
+function server_reconfigure () {
   chef-server-ctl reconfigure --accept-license
   chef-manage-ctl reconfigure --accept-license
 }
 
-server_upgrade () {
-  chef-server-ctl upgrade --accept-license
+function server_upgrade () {
+  chef-server-ctl reconfigure --accept-license
+  chef-server-ctl upgrade
   chef-server-ctl start
   chef-manage-ctl reconfigure --accept-license
 }
@@ -44,7 +58,7 @@ fi
 
 # Upgrade/Configure handler
 # If we're a bootstrap and configs already existed, upgrade
-if [ -n "${BOOTSTRAP_TAGS}" ] || [ -n "${CONFIGS_EXIST}" ] ; then
+if [ -n "${BOOTSTRAP_TAGS}" ] && [ -n "${CONFIGS_EXIST}" ] ; then
   echo "[INFO] Looks like we're on a boostrap node that may need to be upgraded"
   server_upgrade
 else

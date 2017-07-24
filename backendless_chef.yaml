@@ -202,6 +202,8 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       AccessControl: Private
+    VersioningConfiguration:
+      Status: Enabled
 
   ChefInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -368,11 +370,6 @@ Resources:
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -x
-          function error_exit {
-            /opt/aws/bin/cfn-signal -e 1 -r \$1\ '${WaitHandle}'
-            exit 1
-          }
-          export -f error_exit
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
           # All is well so signal success and let CF know wait function is complete
@@ -438,6 +435,7 @@ Resources:
                 export STACKNAME=${AWS::StackName}
                 export BUCKET=${S3BUCKET}
                 export AWS_REGION=${AWS::Region}
+                export WAITHANDLE="${WaitHandle}"
                 curl -s ${ChefServerSetupScript} | bash -x
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
 
