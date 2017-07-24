@@ -15,9 +15,11 @@ A Chef Server cluster utilizing Amazon services for high availability along with
 # Using it
 
 ## Requirements:
+* A working knowledge and comfort level with CloudFormation so that you can read and understand this template for your self
 * A VPC with 3 public and 3 private subnets
   * the private subnets must be behind a NAT gateway (or multiple)
 * Permissions to create all of the types of resources specified in this template (IAM roles, Database subnets, etc)
+* A valid SSL certificate ARN (from the AWS Certificate Manager service)
 
 
 ## Creating a VPC to spec
