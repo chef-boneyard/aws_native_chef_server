@@ -2,6 +2,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Cloudformation Backendless Chef v2.0
 
 Parameters:
+  ChefServerSetupScript:
+    Description: The URL to a script which will be downloaded and execute to configure the Chef Server frontends
+    Type: String
+    Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/script_refactor/main.sh'
   LoadBalancerSubnets:
     Description: Provide a list of Subnet IDs for the ELB
     Type: List<AWS::EC2::Subnet::Id>
@@ -421,41 +425,14 @@ Resources:
                 dark_launch['actions'] = false
           commands:
             01_configure_chef_server:
-              command: !Sub |
-                # Determine if we are the bootstrap node
-                INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
-                BOOTSTRAP_TAGS=`aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
-                STACKNAME=${AWS::StackName}
-                # Determine if we're using a generated bucket or a provided bucket THE HARD WAY because intrinsic functions don't seem to work
-                # https://forums.aws.amazon.com/thread.jspa?threadID=242702
-                if [ -n "${ChefBucket}" ]; then
-                  # If we generated a bucket, then the ChefBucket variable should exist otherwise it is empty
-                  echo "[INFO] Using the generated S3 Bucket ${ChefBucket}"
-                  BUCKET=${ChefBucket}
-                elif [ -n "${ChefSecretsBucket}" ]; then
-                  # Otherwise a ChefSecretsBucket was provided so we'll use that
-                  echo "[INFO] Using the provided S3 Bucket ${ChefSecretsBucket}"
-                  BUCKET=${ChefSecretsBucket}
-                fi
-                # If we're not bootstrap, sync down the rest of the secrets first before reconfiguring
-                if [ -z "${!BOOTSTRAP_TAGS}" ]; then
-                  echo "[INFO] configuring this node as a regular Chef frontend"
-                  aws s3 sync s3://${!BUCKET}/${!STACKNAME}/etc_opscode /etc/opscode
-                  mkdir -p /var/opt/opscode/upgrades
-                  touch /var/opt/opscode/bootstrapped
-                  aws s3 cp s3://${!BUCKET}/${!STACKNAME}/migration-level /var/opt/opscode/upgrades/
-                else
-                  echo "[INFO] configuring this node as a Bootstrap Chef frontend"
-                fi
-                # Configure the chef server
-                chef-server-ctl reconfigure --accept-license
-                chef-manage-ctl reconfigure --accept-license
-                # the bootstrap instance should sync files after reconfigure
-                if [ -n "${!BOOTSTRAP_TAGS}" ]; then
-                  echo "[INFO] syncing secrets up to S3"
-                  aws s3 sync /etc/opscode s3://${!BUCKET}/${!STACKNAME}/etc_opscode
-                  aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${!BUCKET}/${!STACKNAME}/
-                fi
+              command: !Sub
+              - |
+                export STACKNAME=${AWS::StackName}
+                export BUCKET=${S3BUCKET}
+                export AWS_REGION=${AWS::Region}
+                curl -s ${ChefServerSetupScript} | bash -ex
+              - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
+
             02_configure_cloudwatch_monitoring:
               command: !Sub |
                 mkdir /opt/cloudwatch_monitoring
