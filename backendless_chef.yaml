@@ -6,6 +6,14 @@ Parameters:
     Description: The URL to a script which will be downloaded and execute to configure the Chef Server frontends
     Type: String
     Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/script_refactor/main.sh'
+  ChefServerPackage:
+    Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
+    Type: String
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.15.7/el/7/chef-server-core-12.15.7-1.el7.x86_64.rpm'
+  ChefManagePackage:
+    Description: The URL to the chef-manage EL7 package which will be downloaded
+    Type: String
+    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.3/el/7/chef-manage-2.5.3-1.el7.x86_64.rpm'
   LoadBalancerSubnets:
     Description: Provide a list of Subnet IDs for the ELB
     Type: List<AWS::EC2::Subnet::Id>
@@ -374,8 +382,8 @@ Resources:
         config:
           packages:
             rpm:
-              chef-server-core: https://packages.chef.io/files/stable/chef-server/12.15.8/el/7/chef-server-core-12.15.8-1.el7.x86_64.rpm
-              chef-manage: https://packages.chef.io/files/stable/chef-manage/2.5.4/el/7/chef-manage-2.5.4-1.el7.x86_64.rpm
+              chef-server-core: !Sub ${ChefServerPackage}
+              chef-manage: !Sub ${ChefManagePackage}
             yum:
               perl: []
               perl-Switch: []
@@ -387,7 +395,7 @@ Resources:
               unzip: []
           files:
             /etc/chef-manage/manage.rb:
-              content: !Sub
+              content: !Sub |
                 disable_sign_up ${DisableSignup}
             /etc/opscode/chef-server.rb:
               content: !Sub |
@@ -430,7 +438,7 @@ Resources:
                 export STACKNAME=${AWS::StackName}
                 export BUCKET=${S3BUCKET}
                 export AWS_REGION=${AWS::Region}
-                curl -s ${ChefServerSetupScript} | bash -ex
+                curl -s ${ChefServerSetupScript} | bash -x
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
 
             02_configure_cloudwatch_monitoring:
