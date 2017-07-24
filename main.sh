@@ -4,13 +4,14 @@
 test -n "${STACKNAME}" || exit 1
 test -n "${BUCKET}" || exit 1
 test -n "${AWS_REGION}" || exit 1
-# test -n "${WAITHANDLE}" || exit 1
+test -n "${WAITHANDLE}" || exit 1
 
 # Determine if we are the bootstrap node
+# BOOTSTRAP_TAGS will be empty if not
 INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
 BOOTSTRAP_TAGS=`aws ec2 describe-tags --region $AWS_REGION --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
 
-# Check if the configs already exist
+# Check if the configs already exist in S3 - a sign that bootstrap already successfully happened once
 CONFIGS_EXIST=`aws s3 ls s3://${BUCKET}/${STACKNAME}/ | grep migration-level`
 
 # from this point on, exit on any errors and notify the waithandle that something bad happened
