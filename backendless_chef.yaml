@@ -2,6 +2,18 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Cloudformation Backendless Chef v2.0
 
 Parameters:
+  ChefServerSetupScript:
+    Description: The URL to a script which will be downloaded and execute to configure the Chef Server frontends
+    Type: String
+    Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/script_refactor/main.sh'
+  ChefServerPackage:
+    Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
+    Type: String
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.15.7/el/7/chef-server-core-12.15.7-1.el7.x86_64.rpm'
+  ChefManagePackage:
+    Description: The URL to the chef-manage EL7 package which will be downloaded
+    Type: String
+    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.3/el/7/chef-manage-2.5.3-1.el7.x86_64.rpm'
   LoadBalancerSubnets:
     Description: Provide a list of Subnet IDs for the ELB
     Type: List<AWS::EC2::Subnet::Id>
@@ -190,6 +202,8 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       AccessControl: Private
+    VersioningConfiguration:
+      Status: Enabled
 
   ChefInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -356,11 +370,6 @@ Resources:
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -x
-          function error_exit {
-            /opt/aws/bin/cfn-signal -e 1 -r \$1\ '${WaitHandle}'
-            exit 1
-          }
-          export -f error_exit
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
           # All is well so signal success and let CF know wait function is complete
@@ -370,8 +379,8 @@ Resources:
         config:
           packages:
             rpm:
-              chef-server-core: https://packages.chef.io/files/stable/chef-server/12.15.8/el/7/chef-server-core-12.15.8-1.el7.x86_64.rpm
-              chef-manage: https://packages.chef.io/files/stable/chef-manage/2.5.4/el/7/chef-manage-2.5.4-1.el7.x86_64.rpm
+              chef-server-core: !Sub ${ChefServerPackage}
+              chef-manage: !Sub ${ChefManagePackage}
             yum:
               perl: []
               perl-Switch: []
@@ -383,7 +392,7 @@ Resources:
               unzip: []
           files:
             /etc/chef-manage/manage.rb:
-              content: !Sub
+              content: !Sub |
                 disable_sign_up ${DisableSignup}
             /etc/opscode/chef-server.rb:
               content: !Sub |
@@ -421,41 +430,15 @@ Resources:
                 dark_launch['actions'] = false
           commands:
             01_configure_chef_server:
-              command: !Sub |
-                # Determine if we are the bootstrap node
-                INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
-                BOOTSTRAP_TAGS=`aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup`
-                STACKNAME=${AWS::StackName}
-                # Determine if we're using a generated bucket or a provided bucket THE HARD WAY because intrinsic functions don't seem to work
-                # https://forums.aws.amazon.com/thread.jspa?threadID=242702
-                if [ -n "${ChefBucket}" ]; then
-                  # If we generated a bucket, then the ChefBucket variable should exist otherwise it is empty
-                  echo "[INFO] Using the generated S3 Bucket ${ChefBucket}"
-                  BUCKET=${ChefBucket}
-                elif [ -n "${ChefSecretsBucket}" ]; then
-                  # Otherwise a ChefSecretsBucket was provided so we'll use that
-                  echo "[INFO] Using the provided S3 Bucket ${ChefSecretsBucket}"
-                  BUCKET=${ChefSecretsBucket}
-                fi
-                # If we're not bootstrap, sync down the rest of the secrets first before reconfiguring
-                if [ -z "${!BOOTSTRAP_TAGS}" ]; then
-                  echo "[INFO] configuring this node as a regular Chef frontend"
-                  aws s3 sync s3://${!BUCKET}/${!STACKNAME}/etc_opscode /etc/opscode
-                  mkdir -p /var/opt/opscode/upgrades
-                  touch /var/opt/opscode/bootstrapped
-                  aws s3 cp s3://${!BUCKET}/${!STACKNAME}/migration-level /var/opt/opscode/upgrades/
-                else
-                  echo "[INFO] configuring this node as a Bootstrap Chef frontend"
-                fi
-                # Configure the chef server
-                chef-server-ctl reconfigure --accept-license
-                chef-manage-ctl reconfigure --accept-license
-                # the bootstrap instance should sync files after reconfigure
-                if [ -n "${!BOOTSTRAP_TAGS}" ]; then
-                  echo "[INFO] syncing secrets up to S3"
-                  aws s3 sync /etc/opscode s3://${!BUCKET}/${!STACKNAME}/etc_opscode
-                  aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${!BUCKET}/${!STACKNAME}/
-                fi
+              command: !Sub
+              - |
+                export STACKNAME=${AWS::StackName}
+                export BUCKET=${S3BUCKET}
+                export AWS_REGION=${AWS::Region}
+                export WAITHANDLE="${WaitHandle}"
+                curl -s ${ChefServerSetupScript} | bash -x
+              - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
+
             02_configure_cloudwatch_monitoring:
               command: !Sub |
                 mkdir /opt/cloudwatch_monitoring
@@ -579,46 +562,46 @@ Resources:
   DiskSpaceUtilization:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : DiskSpaceUtilization
-      AlarmDescription : Alarms when an disk utilization reaches a specified threshold.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : DiskSpaceUtilization
-      Namespace : System/Linux
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 2
-      Period : 300
-      Statistic : Average
-      Threshold : 90
+      AlarmName: !Sub DiskSpaceUtilization-${AWS::StackName}
+      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: DiskSpaceUtilization
+      Namespace: System/Linux
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 90
       Unit: Percent
 
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : MemoryUtilization
-      AlarmDescription : Alarms when an memory utilization reaches a specified threshold.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : MemoryUtilization
-      Namespace : System/Linux
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 2
-      Period : 300
-      Statistic : Average
-      Threshold : 80
+      AlarmName: !Sub MemoryUtilization-${AWS::StackName}
+      AlarmDescription: Alarms when an memory utilization reaches a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: MemoryUtilization
+      Namespace: System/Linux
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
       Unit: Percent
 
   ELB5XXExceeded:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : ELB_5XX_Exceeded
-      AlarmDescription : Alarms when an 5xx requests exceed a specified threshold.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : HTTPCode_ELB_5XX
-      Namespace : AWS/ELB
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 1
-      Period : 300
-      Statistic : Sum
-      Threshold : 10
+      AlarmName: !Sub ELB_5XX_Exceeded-${AWS::StackName}
+      AlarmDescription: Alarms when an 5xx requests exceed a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: HTTPCode_ELB_5XX
+      Namespace: AWS/ELB
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Sum
+      Threshold: 10
       Dimensions:
         -
           Name: LoadBalancerName
@@ -627,16 +610,16 @@ Resources:
   CPUAlarmHigh:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : CPUAlarmHigh
-      AlarmDescription : Scale up when CPU > 60% for 10 minutes
-      AlarmActions : [!Ref FrontendAutoScaleUpPolicy]
-      MetricName : CPUUtilization
-      Namespace : AWS/EC2
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 2
-      Period : 300
-      Statistic : Average
-      Threshold : 60
+      AlarmName: !Sub CPUAlarmHigh-${AWS::StackName}
+      AlarmDescription: Scale up when CPU > 60% for 10 minutes
+      AlarmActions: [!Ref FrontendAutoScaleUpPolicy]
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 60
       Dimensions:
         -
           Name: AutoScalingGroupName
@@ -645,16 +628,16 @@ Resources:
   CPUAlarmLow:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : CPUAlarmLow
-      AlarmDescription : Scale down when CPU < 50% for 10 minutes
-      AlarmActions : [!Ref FrontendAutoScaleDownPolicy]
-      MetricName : CPUUtilization
-      Namespace : AWS/EC2
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 2
-      Period : 300
-      Statistic : Average
-      Threshold : 50
+      AlarmName: !Sub CPUAlarmLow-${AWS::StackName}
+      AlarmDescription: Scale down when CPU < 50% for 10 minutes
+      AlarmActions: [!Ref FrontendAutoScaleDownPolicy]
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 50
       Dimensions:
         -
           Name: AutoScalingGroupName
@@ -663,16 +646,16 @@ Resources:
   RDSWriteLatency:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : RDSWriteLatency
-      AlarmDescription : Alarm when RDS write latency is greater than 500ms.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : WriteLatency
-      Namespace : AWS/RDS
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 1
-      Period : 300
-      Statistic : Average
-      Threshold : 500
+      AlarmName: !Sub RDSWriteLatency-${AWS::StackName}
+      AlarmDescription: Alarm when RDS write latency is greater than 500ms.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: WriteLatency
+      Namespace: AWS/RDS
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Average
+      Threshold: 500
       Dimensions:
         -
           Name: DBInstanceIdentifier
@@ -681,16 +664,16 @@ Resources:
   RDSReadLatency:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : RDSReadLatency
-      AlarmDescription : Alarm when RDS write latency is greater than a 500ms.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : ReadLatency
-      Namespace : AWS/RDS
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 1
-      Period : 300
-      Statistic : Average
-      Threshold : 500
+      AlarmName: !Sub RDSReadLatency-${AWS::StackName}
+      AlarmDescription: Alarm when RDS write latency is greater than a 500ms.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: ReadLatency
+      Namespace: AWS/RDS
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Average
+      Threshold: 500
       Dimensions:
         -
           Name: DBInstanceIdentifier
@@ -699,16 +682,16 @@ Resources:
   ESClusterRed:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : ESClusterRed
-      AlarmDescription : Alarm when both primary and replica shards are down.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : ClusterStatus.red
-      Namespace : AWS/ES
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 1
-      Period : 300
-      Statistic : Minimum
-      Threshold : 1
+      AlarmName: !Sub ESClusterRed-${AWS::StackName}
+      AlarmDescription: Alarm when both primary and replica shards are down.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: ClusterStatus.red
+      Namespace: AWS/ES
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Minimum
+      Threshold: 1
       Dimensions:
         -
           Name: DomainName
@@ -721,16 +704,16 @@ Resources:
   ESClusterYellow:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : ESClusterYellow
-      AlarmDescription : Alarm when replica shards are down for 15 minutes.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : ClusterStatus.yellow
-      Namespace : AWS/ES
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 3
-      Period : 300
-      Statistic : Minimum
-      Threshold : 1
+      AlarmName: !Sub ESClusterYellow-${AWS::StackName}
+      AlarmDescription: Alarm when replica shards are down for 15 minutes.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: ClusterStatus.yellow
+      Namespace: AWS/ES
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 3
+      Period: 300
+      Statistic: Minimum
+      Threshold: 1
       Dimensions:
         -
           Name: DomainName
@@ -742,17 +725,17 @@ Resources:
   ESFreeStorageSpace:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : ESFreeStorageSpace
-      AlarmDescription : Alarm when free storage space on any node falls below threshold.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : FreeStorageSpace
-      Namespace : AWS/ES
-      ComparisonOperator : LessThanOrEqualToThreshold
-      EvaluationPeriods : 1
-      Period : 300
+      AlarmName: !Sub ESFreeStorageSpace-${AWS::StackName}
+      AlarmDescription: Alarm when free storage space on any node falls below threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: FreeStorageSpace
+      Namespace: AWS/ES
+      ComparisonOperator: LessThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
       # Reports when any node in the cluster falls below the threshold.
-      Statistic : Minimum
-      Threshold : 5000
+      Statistic: Minimum
+      Threshold: 5000
       Dimensions:
         -
           Name: DomainName
@@ -764,16 +747,16 @@ Resources:
   ESCPUUtilization:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : ESCPUUtilization
-      AlarmDescription : Alarm when all nodes' average CPU load passes threshold.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : CPUUtilization
-      Namespace : AWS/ES
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 2
-      Period : 300
-      Statistic : Average
-      Threshold : 80
+      AlarmName: !Sub ESCPUUtilization-${AWS::StackName}
+      AlarmDescription: Alarm when all nodes' average CPU load passes threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: CPUUtilization
+      Namespace: AWS/ES
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
       Unit: Percent
       Dimensions:
         -
@@ -786,16 +769,16 @@ Resources:
   ESJVMMemoryPressure:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName : ESJVMMemoryPressure
-      AlarmDescription : Alarm when maximum percentage of the Java heap used for all data nodes in the cluster exceeds threshold.
-      AlarmActions : [!Ref AlertNotificationTopic]
-      MetricName : JVMMemoryPressure
-      Namespace : AWS/ES
-      ComparisonOperator : GreaterThanOrEqualToThreshold
-      EvaluationPeriods : 2
-      Period : 300
-      Statistic : Maximum
-      Threshold : 90
+      AlarmName: !Sub ESJVMMemoryPressure-${AWS::StackName}
+      AlarmDescription: Alarm when maximum percentage of the Java heap used for all data nodes in the cluster exceeds threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: JVMMemoryPressure
+      Namespace: AWS/ES
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Maximum
+      Threshold: 90
       Unit: Percent
       Dimensions:
         -

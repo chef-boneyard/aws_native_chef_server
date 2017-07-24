@@ -15,9 +15,11 @@ A Chef Server cluster utilizing Amazon services for high availability along with
 # Using it
 
 ## Requirements:
+* A working knowledge and comfort level with CloudFormation so that you can read and understand this template for your self
 * A VPC with 3 public and 3 private subnets
   * the private subnets must be behind a NAT gateway (or multiple)
 * Permissions to create all of the types of resources specified in this template (IAM roles, Database subnets, etc)
+* A valid SSL certificate ARN (from the AWS Certificate Manager service)
 
 
 ## Creating a VPC to spec
@@ -72,6 +74,18 @@ ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@bastion" -l ec2-user <chef server 
 
 otherwise just login as `ec2-user` to the private IPs of the chef servers
 
+## Upgrading
+
+If a new Chef Server or Manage package comes out, the process for upgrading is simple and requires no downtime:
+
+1. Using Cloudformation's `update-stack` functionality, update the `ChefServerPackage` and `ChefManagePackage` parameters to the new URLs.
+  - Confirm in the ChangeSet that this will only `ServerLaunchConfig` resource and no others!
+2. Wait for the update-stack to run, it may take a few minutes for the new metadata to be available
+3. Terminate the bootstrap frontend instance (aka `mystack-chef-bootstrap-frontend`). AutoScale will launch a new one within a few seconds that will pick up the new package versions and upgrade.
+4. Terminate all of the non-bootstrap frontend instances.  the same process will happen.
+  - alternatively, temporarily increase the desired capacity to launch new instances and then decrease it back to the original level to terminate the old instances
+5. You're up to date!
+
 # FAQ
 
 ### Is this better than using chef-backend on AWS?
@@ -98,14 +112,12 @@ Because AWS ElasticSearch's authentication model provides some challenges:
 
 ### What improvements can be made to this template?
 
-- Upgrade handling - right now there's no support for handling upgrades
-- Support for terminating the bootstrap instance (secrets handling code is too naive)
 - Integrate an AWS ElasticSearch signing module into the chef server
 - Support for restoring from an RDS Snapshot
 - Investigate better secrets handling (AWS secrets service?)
 - Upgrade the load balancer to the new-style ALB
 - Fix an error where the partybus configuration file assumes that Postgres is in localhost
-- Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or
+- Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or RedShift
 
 Contributions are welcomed!
 
