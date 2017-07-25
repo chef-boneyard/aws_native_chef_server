@@ -1,5 +1,5 @@
-# Backendless Chef in AWS
-A Chef Server cluster utilizing Amazon services for high availability along with autoscaled frontends.
+# AWS Native Chef Server Cluster
+A Chef Server cluster utilizing Amazon services for high availability, auto-scaling and DBaaS
 
 ![Chef Server Backendless Diagram](/images/arch-diagram.png?raw=true "Architecture Diagram")
 
