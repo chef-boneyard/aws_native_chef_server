@@ -1,7 +1,7 @@
 # Backendless Chef in AWS
 A Chef Server cluster utilizing Amazon services for high availability along with autoscaled frontends.
 
-![Chef Server Backendless Diagram](https://cloud.githubusercontent.com/assets/382062/21002669/26f69096-bce4-11e6-903c-153bb040ae16.png)
+![Chef Server Backendless Diagram](/images/arch-diagram.png?raw=true "Architecture Diagram")
 
 # What does this template provision?
 - A "bootstrap" frontend in an Auto Scaling Group of 1.
@@ -9,8 +9,11 @@ A Chef Server cluster utilizing Amazon services for high availability along with
 - A Multi AZ Elastic Load Balancer instance.
 - A Multi AZ RDS Postgres database.
 - An ElasticSearch cluster that defaults to 3 shards.
-- Basic CloudWatch alarms. (WIP)
 - Various security groups, iam profiles, and various pieces to connect the things.
+- Cloudwatch alarms and an Operations dashboard in Cloudwatch:
+
+![Dashboard Example](/images/opsdashboard.png?raw=true "Architecture Diagram")
+
 
 # Using it
 
@@ -114,7 +117,6 @@ Because AWS ElasticSearch's authentication model provides some challenges:
 
 - Integrate an AWS ElasticSearch signing module into the chef server
 - Support for restoring from an RDS Snapshot and existing secrets bucket
-- Automatically build a cloudwatch dashboard
 - Investigate better secrets handling (AWS secrets service?)
 - Fix an error where the partybus configuration file assumes that Postgres is in localhost
 - Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or RedShift
