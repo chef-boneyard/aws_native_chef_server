@@ -9,11 +9,11 @@ Parameters:
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.15.7/el/7/chef-server-core-12.15.7-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.15.8/el/7/chef-server-core-12.15.8-1.el7.x86_64.rpm'
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.3/el/7/chef-manage-2.5.3-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.4/el/7/chef-manage-2.5.4-1.el7.x86_64.rpm'
   MaxFrontendInstances:
     Description: The maximum number of additional frontend instances to launch
     Type: Number
