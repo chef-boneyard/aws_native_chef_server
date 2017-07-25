@@ -113,9 +113,9 @@ Because AWS ElasticSearch's authentication model provides some challenges:
 ### What improvements can be made to this template?
 
 - Integrate an AWS ElasticSearch signing module into the chef server
-- Support for restoring from an RDS Snapshot
+- Support for restoring from an RDS Snapshot and existing secrets bucket
+- Automatically build a cloudwatch dashboard
 - Investigate better secrets handling (AWS secrets service?)
-- Upgrade the load balancer to the new-style ALB
 - Fix an error where the partybus configuration file assumes that Postgres is in localhost
 - Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or RedShift
 

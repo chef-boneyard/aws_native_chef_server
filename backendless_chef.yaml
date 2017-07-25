@@ -5,7 +5,7 @@ Parameters:
   ChefServerSetupScript:
     Description: The URL to a script which will be downloaded and execute to configure the Chef Server frontends
     Type: String
-    Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/script_refactor/main.sh'
+    Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/master/main.sh'
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
@@ -139,8 +139,8 @@ Resources:
     Properties:
       AvailabilityZones: {"Fn::GetAZs": ""}
       LaunchConfigurationName: !Ref ServerLaunchConfig
-      LoadBalancerNames:
-      - !Ref PrimaryElasticLoadBalancer
+      TargetGroupARNs:
+      - !Ref ChefTargetGroup
       MaxSize: '1'
       MinSize: '1'
       Tags:
@@ -164,8 +164,8 @@ Resources:
     Properties:
       AvailabilityZones: {"Fn::GetAZs": ""}
       LaunchConfigurationName: !Ref ServerLaunchConfig
-      LoadBalancerNames:
-      - !Ref PrimaryElasticLoadBalancer
+      TargetGroupARNs:
+      - !Ref ChefTargetGroup
       MaxSize: '3'
       MinSize: '1'
       Tags:
@@ -202,8 +202,8 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       AccessControl: Private
-    VersioningConfiguration:
-      Status: Enabled
+      VersioningConfiguration:
+        Status: Enabled
 
   ChefInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -314,37 +314,53 @@ Resources:
       VpcId: !Ref VPC
     Type: AWS::EC2::SecurityGroup
 
-  PrimaryElasticLoadBalancer:
-    Type: AWS::ElasticLoadBalancing::LoadBalancer
+  ChefALB:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
-      CrossZone: true
-      HealthCheck:
-        HealthyThreshold: '2'
-        Interval: '90'
-        Target: HTTP:80/_status
-        Timeout: '60'
-        UnhealthyThreshold: '10'
-      LBCookieStickinessPolicy:
-      - CookieExpirationPeriod: '3600'
-        PolicyName: PublicELBCookieStickinessPolicy
-      Listeners:
-      - InstancePort: 80
-        InstanceProtocol: HTTP
-        LoadBalancerPort: '443'
-        PolicyNames:
-        - PublicELBCookieStickinessPolicy
-        Protocol: HTTPS
-        SSLCertificateId: !Ref SSLCertificateARN
+      Name: !Sub ${AWS::StackName}-lb
       SecurityGroups:
-      - !Ref LoadBalancerSecurityGroup
+        - !Ref LoadBalancerSecurityGroup
       Subnets: !Ref LoadBalancerSubnets
+      # IpAddressType: dualstack
       Tags:
-      - Key: Name
-        Value: !Sub ${AWS::StackName}-elb
-      - Key: X-Dept
-        Value: !Ref ContactDept
-      - Key: X-Contact
-        Value: !Ref ContactEmail
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-lb
+        - Key: X-Dept
+          Value: !Ref ContactDept
+        - Key: X-Contact
+          Value: !Ref ContactEmail
+
+  ChefALBListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+        Certificates:
+          - CertificateArn: !Ref SSLCertificateARN
+        LoadBalancerArn: !Ref ChefALB
+        Port: 443
+        Protocol: HTTPS
+        DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ChefTargetGroup
+
+  ChefTargetGroup:
+      Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+      Properties:
+        HealthCheckIntervalSeconds: 60
+        UnhealthyThresholdCount: 10
+        HealthCheckPath: /_status
+        VpcId: !Ref VPC
+        Port: 80
+        Protocol: HTTP
+        TargetGroupAttributes:
+          - Key: stickiness.enabled
+            Value: true
+          - Key: stickiness.type
+            Value: lb_cookie
+        Tags:
+          - Key: X-Dept
+            Value: !Ref ContactDept
+          - Key: X-Contact
+            Value: !Ref ContactEmail
 
   ServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -396,7 +412,7 @@ Resources:
                 disable_sign_up ${DisableSignup}
             /etc/opscode/chef-server.rb:
               content: !Sub |
-                api_fqdn '${PrimaryElasticLoadBalancer.DNSName}'.downcase
+                api_fqdn '${ChefALB.DNSName}'.downcase
                 nginx['enable_non_ssl'] = true
                 license['nodes'] = ${LicenseCount}
                 postgresql['external'] = true
@@ -592,20 +608,20 @@ Resources:
   ELB5XXExceeded:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub ELB_5XX_Exceeded-${AWS::StackName}
+      AlarmName: !Sub AppELB_5XX_Exceeded-${AWS::StackName}
       AlarmDescription: Alarms when an 5xx requests exceed a specified threshold.
       AlarmActions: [!Ref AlertNotificationTopic]
-      MetricName: HTTPCode_ELB_5XX
-      Namespace: AWS/ELB
+      MetricName: HTTPCode_ELB_5XX_Count
+      Namespace: AWS/ApplicationELB
       ComparisonOperator: GreaterThanOrEqualToThreshold
-      EvaluationPeriods: 1
-      Period: 300
+      EvaluationPeriods: 5
+      Period: 60
       Statistic: Sum
       Threshold: 10
       Dimensions:
         -
-          Name: LoadBalancerName
-          Value: !Ref PrimaryElasticLoadBalancer
+          Name: LoadBalancer
+          Value: !Ref ChefALB
 
   CPUAlarmHigh:
     Type: AWS::CloudWatch::Alarm
