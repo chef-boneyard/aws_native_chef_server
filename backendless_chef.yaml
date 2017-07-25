@@ -14,6 +14,10 @@ Parameters:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
     Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.3/el/7/chef-manage-2.5.3-1.el7.x86_64.rpm'
+  MaxFrontendInstances:
+    Description: The maximum number of additional frontend instances to launch
+    Type: Number
+    Default: 3
   LoadBalancerSubnets:
     Description: Provide a list of Subnet IDs for the ELB
     Type: List<AWS::EC2::Subnet::Id>
@@ -166,7 +170,7 @@ Resources:
       LaunchConfigurationName: !Ref ServerLaunchConfig
       TargetGroupARNs:
       - !Ref ChefTargetGroup
-      MaxSize: '3'
+      MaxSize: !Sub '${MaxFrontendInstances}'
       MinSize: '1'
       Tags:
       - Key: Name

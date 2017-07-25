@@ -5,10 +5,10 @@ A Chef Server cluster utilizing Amazon services for high availability along with
 
 # What does this template provision?
 - A "bootstrap" frontend in an Auto Scaling Group of 1.
-- A second frontend in an Auto Scaling Group that will scale up to 3 total.
-- A Multi AZ Elastic Load Balancer instance.
-- A Multi AZ RDS Postgres database.
-- An ElasticSearch cluster that defaults to 3 shards.
+- A second frontend in an Auto Scaling Group that will automatically scale up to a configured maximum (default 3)
+- A Multi-AZ Elastic Load Balancer
+- A Multi-AZ RDS Postgres database
+- A Multi-AZ ElasticSearch cluster
 - Various security groups, iam profiles, and various pieces to connect the things.
 - Cloudwatch alarms and an Operations dashboard in Cloudwatch:
 
@@ -66,6 +66,35 @@ aws cloudformation create-stack \
   ParameterKey=ContactEmail,ParameterValue=irving@chef.io \
   ParameterKey=ContactDept,ParameterValue=success
 ```
+
+## Updating the stack
+
+If you've made changes to the template content or parameters and you wish to update a running stack:
+
+```bash
+aws cloudformation validate-template --template-body file://backendless_chef.yaml &&
+aws cloudformation update-stack \
+  --stack-name irving-backendless-chef \
+  --template-body file://backendless_chef.yaml \
+  --capabilities CAPABILITY_IAM \
+  --parameters \
+  ParameterKey=SSLCertificateARN,ParameterValue=arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f \
+  ParameterKey=LicenseCount,ParameterValue=999999 \
+  ParameterKey=DBUser,ParameterValue=chefadmin \
+  ParameterKey=DBPassword,ParameterValue=SuperSecurePassword \
+  ParameterKey=KeyName,ParameterValue=irving \
+  ParameterKey=VPC,ParameterValue=vpc-fa58989d \
+  ParameterKey=SSHSecurityGroup,ParameterValue=sg-bddcfbc4 \
+  'ParameterKey=LoadBalancerSubnets,ParameterValue="subnet-63c62b04,subnet-dc1611aa,subnet-0247365a"' \
+  'ParameterKey=ChefServerSubnets,ParameterValue="subnet-66c62b01,subnet-df1611a9,subnet-01473659"' \
+  'ParameterKey=NatGatewayIPs,ParameterValue="35.162.132.208"' \
+  ParameterKey=InstanceType,ParameterValue=c4.large \
+  ParameterKey=DBInstanceClass,ParameterValue=db.m4.large \
+  ParameterKey=ContactEmail,ParameterValue=irving@chef.io \
+  ParameterKey=ContactDept,ParameterValue=success
+```
+
+Note: For production instances it is recommended to use the CloudFormation console so that you can get a report of all changes before executing them.  Particularly pay attention to any resources that are being replaced.
 
 ## SSH to your hosts
 
