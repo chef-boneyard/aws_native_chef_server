@@ -1068,9 +1068,9 @@ Resources:
                         "view": "timeSeries",
                         "stacked": true,
                         "metrics": [
-                            [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${ChefALB.LoadBalancerFullName}", { "period": 60 } ],
-                            [ ".", "HTTPCode_ELB_4XX_Count", ".", ".", { "period": 60 } ],
-                            [ ".", "HTTPCode_ELB_5XX_Count", ".", ".", { "period": 60, "color": "#d62728" } ]
+                            [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${ChefALB.LoadBalancerFullName}", { "period": 60, "stat": "Sum" } ],
+                            [ ".", "HTTPCode_ELB_4XX_Count", ".", ".", { "period": 60, "stat": "Sum" } ],
+                            [ ".", "HTTPCode_ELB_5XX_Count", ".", ".", { "period": 60, "color": "#d62728", "stat": "Sum" } ]
                         ],
                         "region": "${AWS::Region}",
                         "title": "LB HTTP Requests per Minute by Type",
@@ -1104,7 +1104,7 @@ Resources:
                         "view": "timeSeries",
                         "stacked": false,
                         "metrics": [
-                            [ "AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${ChefALB.LoadBalancerFullName}", { "period": 60 } ]
+                            [ "AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${ChefALB.LoadBalancerFullName}", { "period": 60, "stat": "p99" } ]
                         ],
                         "region": "${AWS::Region}",
                         "title": "Frontend Response Time (ms)"
