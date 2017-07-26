@@ -353,8 +353,8 @@ Resources:
         UnhealthyThresholdCount: 10
         HealthCheckPath: /_status
         VpcId: !Ref VPC
-        Port: 80
-        Protocol: HTTP
+        Port: 443
+        Protocol: HTTPS
         TargetGroupAttributes:
           - Key: stickiness.enabled
             Value: true
