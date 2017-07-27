@@ -448,23 +448,20 @@ Resources:
                 rabbitmq['queue_length_monitor_enabled'] = false
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
-            /tmp/esproxy_upstream.conf:
-              content: !Sub |
-                upstream elasticsearch {
-                  server ${ElasticsearchDomain.DomainEndpoint}:443;
-                }
             /tmp/nginx.conf:
-              source: https://raw.githubusercontent.com/nsdavidson/aws_native_chef_server/nd/es-proxy/files/nginx-esproxy.conf 
+              source: https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/nd/es-proxy/files/nginx-esproxy.conf
+              context:
+                es_endpoint: ${ElasticsearchDomain.DomainEndpoint}
             /var/opt/opscode/nginx-esproxy/etc/scripts/aws_creds.lua:
-              source: https://raw.githubusercontent.com/nsdavidson/aws_native_chef_server/nd/es-proxy/files/aws_creds.lua
+              source: https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/nd/es-proxy/files/aws_creds.lua
             /var/opt/opscode/nginx-esproxy/etc/scripts/es_auth.lua:
-              source: https://raw.githubusercontent.com/nsdavidson/aws_native_chef_server/nd/es-proxy/files/es_auth.lua
+              source: https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/nd/es-proxy/files/es_auth.lua
               context:
                 region: !Ref AWS::Region
             /var/opt/opscode/nginx-esproxy/etc/scripts/resty/aws_auth.lua:
-              source: https://raw.githubusercontent.com/nsdavidson/aws_native_chef_server/nd/es-proxy/files/aws_auth.lua
+              source: https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/nd/es-proxy/files/aws_auth.lua
             /var/opt/opscode/nginx-esproxy/etc/scripts/resty/hmac.lua:
-              source: https://raw.githubusercontent.com/nsdavidson/aws_native_chef_server/nd/es-proxy/files/hmac.lua
+              source: https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/nd/es-proxy/files/hmac.lua
           commands:
             01_start_es_proxy:
               command: !Sub | 
@@ -579,7 +576,7 @@ Resources:
         Statement:
           - Effect: "Allow"
             Principal:
-              AWS: !GetAtt ChefRole.Arn
+              AWS: !If [CreateChefServerIamRole, !GettAtt ChefRole.Arn, arn:aws:iam::${AWS::AccountId}:role/${ChefServerIamRole}]
             Action: "es:*"
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
