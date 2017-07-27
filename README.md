@@ -1,7 +1,7 @@
 # AWS Native Chef Server Cluster
 A Chef Server cluster utilizing Amazon services for high availability, auto-scaling and DBaaS
 
-![Chef Server Backendless Diagram](/images/arch-diagram.png?raw=true "Architecture Diagram")
+![Chef Server Architecture Diagram](/images/arch-diagram.png?raw=true "Architecture Diagram")
 
 # What does this template provision?
 - A "bootstrap" frontend in an Auto Scaling Group of 1.
@@ -22,7 +22,7 @@ A Chef Server cluster utilizing Amazon services for high availability, auto-scal
 * Permissions to create all of the types of resources specified in this template (IAM roles, Database subnets, etc)
 * A valid SSL certificate ARN (from the AWS Certificate Manager service)
 
-## Fire up the backendless chef server stack
+## Fire up the Chef Server stack
 
 It is possible to launch using the AWS Cloudformation Console, although you may find it more repeatable and less error-prone to use the command aws command-line way:
 
