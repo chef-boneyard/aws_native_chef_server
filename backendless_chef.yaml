@@ -939,7 +939,13 @@ Resources:
                             [ "AWS/ES", "JVMMemoryPressure", "DomainName", "${ElasticsearchDomain}", "ClientId", "${AWS::AccountId}", { "period": 60 } ]
                         ],
                         "region": "${AWS::Region}",
-                        "title": "ElasticSearch JVM Memory Pressure"
+                        "title": "ElasticSearch JVM Memory Pressure",
+                        "yAxis": {
+                            "left": {
+                                "min": 0,
+                                "max": 100
+                            }
+                        }
                     }
                 },
                 {
