@@ -451,7 +451,7 @@ Resources:
             /tmp/nginx.conf:
               source: https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/nd/es-proxy/files/nginx-esproxy.conf
               context:
-                es_endpoint: ${ElasticsearchDomain.DomainEndpoint}
+                es_endpoint: !Sub ${ElasticsearchDomain.DomainEndpoint}
             /var/opt/opscode/nginx-esproxy/etc/scripts/aws_creds.lua:
               source: https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/nd/es-proxy/files/aws_creds.lua
             /var/opt/opscode/nginx-esproxy/etc/scripts/es_auth.lua:
@@ -576,7 +576,7 @@ Resources:
         Statement:
           - Effect: "Allow"
             Principal:
-              AWS: !If [CreateChefServerIamRole, !GettAtt ChefRole.Arn, arn:aws:iam::${AWS::AccountId}:role/${ChefServerIamRole}]
+              AWS: !If [CreateChefServerIamRole, !GetAtt ChefRole.Arn, !Sub "arn:aws:iam::${AWS::AccountId}:role/${ChefServerIamRole}"]
             Action: "es:*"
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
