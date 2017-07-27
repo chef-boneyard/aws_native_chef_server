@@ -19,26 +19,8 @@ A Chef Server cluster utilizing Amazon services for high availability, auto-scal
 
 ## Requirements:
 * A working knowledge and comfort level with CloudFormation so that you can read and understand this template for your self
-* A VPC with 3 public and 3 private subnets
-  * the private subnets must be behind a NAT gateway (or multiple)
 * Permissions to create all of the types of resources specified in this template (IAM roles, Database subnets, etc)
 * A valid SSL certificate ARN (from the AWS Certificate Manager service)
-
-
-## Creating a VPC to spec
-
-If you don't have a VPC configuration that can NAT your chef server's traffic out of a predictable set of public IPs, the following template will help you:
-
-```bash
-# create the VPCs
-aws cloudformation create-stack --stack-name myname-vpc --template-body file://vpc/vpc-3azs.yaml --capabilities CAPABILITY_IAM --parameters ParameterKey=ClassB,ParameterValue=42
-
-# create the NAT gateway
-aws cloudformation create-stack --stack-name myname-vpc-natgw --template-body file://vpc/vpc-nat-gateway.yaml --capabilities CAPABILITY_IAM --parameters ParameterKey=ParentVPCStack,ParameterValue=myname-vpc
-
-# create the bastion host
-aws cloudformation create-stack --stack-name myname-vpc-bastion --template-body file://vpc/vpc-ssh-bastion.yaml --capabilities CAPABILITY_IAM --parameters ParameterKey=ParentVPCStack,ParameterValue=myname-vpc ParameterKey=KeyName,ParameterValue=my_ssh_key
-```
 
 ## Fire up the backendless chef server stack
 
@@ -134,20 +116,11 @@ Yes, it is significantly more robust and easier to operate.
   - The template itself and any errors you may have provisioning services (talk to your Customer Success team if you need help)
   - Any AWS services provisioned (RDS, ElasticSearch) - please direct questions to AWS Customer Support
 
-### Why are the Chef Frontends required to be behind a NAT gateway?
-
-Because AWS ElasticSearch's authentication model provides some challenges:
-- It is IAM integrated, required an AWS-proprietary signing module that Chef server doesn't support
-- It allows authentication to be bypassed on an IP basis, but isn't VPC integrated (private IPs don't work, only public IPs)
-- Therefore we need a simple model to predict the public IP addresses of the Chef Servers, or else they won't be able to access ElasticSearch (port 9200 will be open, but all requests will be rejected)
-
-
 ### What improvements can be made to this template?
 
-- Integrate an AWS ElasticSearch signing module into the chef server
+- Fix an error where the partybus configuration file assumes that Postgres is in localhost
 - Support for restoring from an RDS Snapshot and existing secrets bucket
 - Investigate better secrets handling (AWS secrets service?)
-- Fix an error where the partybus configuration file assumes that Postgres is in localhost
 - Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or RedShift
 
 Contributions are welcomed!
