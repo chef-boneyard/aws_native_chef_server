@@ -24,7 +24,7 @@ function error_exit {
 trap 'error_exit $LINENO' ERR
 
 function download_config () {
-  aws s3 sync s3://${BUCKET}/${STACKNAME}/etc_opscode /etc/opscode
+  aws s3 sync s3://${BUCKET}/${STACKNAME}/etc_opscode /etc/opscode --exclude "chef-server.rb"
   mkdir -p /var/opt/opscode/upgrades
   touch /var/opt/opscode/bootstrapped
   aws s3 cp s3://${BUCKET}/${STACKNAME}/migration-level /var/opt/opscode/upgrades/
