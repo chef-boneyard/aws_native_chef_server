@@ -22,11 +22,8 @@ Parameters:
     Description: Provide a list of Subnet IDs for the ELB
     Type: List<AWS::EC2::Subnet::Id>
   ChefServerSubnets:
-    Description: Provide a list of Subnet IDs for the Chef Servers (must be behind a NAT gateway)
+    Description: Provide a list of Subnet IDs for the Chef Servers
     Type: List<AWS::EC2::Subnet::Id>
-  NatGatewayIPs:
-    Description: The NAT gateway IP associated with the chef server subnets required for ElasticSearch Access
-    Type: CommaDelimitedList
   DBPassword:
     Description: Enter DB Password
     NoEcho: true
