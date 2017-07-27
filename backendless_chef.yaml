@@ -1,11 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.1
+Description: AWS Native Chef Server v2.2
 
 Parameters:
-  ChefServerSetupScript:
-    Description: The URL to a script which will be downloaded and execute to configure the Chef Server frontends
-    Type: String
-    Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/master/main.sh'
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
@@ -15,7 +11,7 @@ Parameters:
     Type: String
     Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.4/el/7/chef-manage-2.5.4-1.el7.x86_64.rpm'
   FilesLocation:
-    Description: The base URL nginx/lua files for the Elasticsearch proxy
+    Description: The base URL for script and config files needed by this template (include a trailing /)
     Type: String
     Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/master/files/'
   MaxFrontendInstances:
@@ -253,6 +249,10 @@ Resources:
         - Action: s3:List*
           Effect: Allow
           Resource: arn:aws:s3:::*
+        # Allow instances to set themselves as unhealthy if one of the scripts fail
+        - Action: autoscaling:*
+          Effect: Allow
+          Resource: "*"
         # Allow instances to read their own tags (needed for setup script below)
         - Action: ec2:DescribeTags
           Effect: Allow
@@ -394,8 +394,12 @@ Resources:
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -x
+          function error_exit {
+            aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+            exit 1
+          }
           # Execute AWS::CloudFormation::Init
-          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region} || error_exit
           # All is well so signal success and let CF know wait function is complete
           /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}'
     Metadata:
@@ -468,8 +472,8 @@ Resources:
               source: !Sub ${FilesLocation}hmac.lua
           commands:
             01_start_es_proxy:
-              command: !Sub | 
-                mkdir -p /var/opt/opscode/nginx-esproxy/tmp/client_body 
+              command: !Sub |
+                mkdir -p /var/opt/opscode/nginx-esproxy/tmp/client_body
                 mkdir -p /var/log/opscode/nginx-esproxy
                 yum-config-manager --add-repo https://openresty.org/package/amazon/openresty.repo -y
                 yum install openresty -y
@@ -483,7 +487,7 @@ Resources:
                 export BUCKET=${S3BUCKET}
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
-                curl -s ${ChefServerSetupScript} | bash -x
+                curl -s ${FilesLocation}main.sh | bash -x
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
 
             03_configure_cloudwatch_monitoring:
