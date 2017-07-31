@@ -24,7 +24,7 @@ A Chef Server cluster utilizing Amazon services for high availability, auto-scal
 
 ## Fire up the Chef Server stack
 
-It is possible to launch using the AWS Cloudformation Console, although you may find it more repeatable and less error-prone to use the command aws command-line way:
+It is possible to launch using the AWS Cloudformation Console, although you may find it more repeatable and less error-prone to use the command aws command-line way. First copy file `stack_parameters.json.example` to `stack_parameters.json`, make the necessary changes, then run this command:
 
 ```bash
 aws cloudformation create-stack \
@@ -32,21 +32,7 @@ aws cloudformation create-stack \
   --template-body file://backendless_chef.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
-  --parameters \
-  ParameterKey=SSLCertificateARN,ParameterValue=arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f \
-  ParameterKey=LicenseCount,ParameterValue=999999 \
-  ParameterKey=DBUser,ParameterValue=chefadmin \
-  ParameterKey=DBPassword,ParameterValue=SuperSecurePassword \
-  ParameterKey=KeyName,ParameterValue=irving \
-  ParameterKey=VPC,ParameterValue=vpc-fa58989d \
-  ParameterKey=SSHSecurityGroup,ParameterValue=sg-bddcfbc4 \
-  'ParameterKey=LoadBalancerSubnets,ParameterValue="subnet-63c62b04,subnet-dc1611aa,subnet-0247365a"' \
-  'ParameterKey=ChefServerSubnets,ParameterValue="subnet-66c62b01,subnet-df1611a9,subnet-01473659"' \
-  'ParameterKey=NatGatewayIPs,ParameterValue="35.162.132.208"' \
-  ParameterKey=InstanceType,ParameterValue=c4.large \
-  ParameterKey=DBInstanceClass,ParameterValue=db.m4.large \
-  ParameterKey=ContactEmail,ParameterValue=irving@chef.io \
-  ParameterKey=ContactDept,ParameterValue=success
+  --parameters file://stack_parameters.json
 ```
 
 ## Updating the stack
@@ -59,21 +45,7 @@ aws cloudformation update-stack \
   --stack-name irving-backendless-chef \
   --template-body file://backendless_chef.yaml \
   --capabilities CAPABILITY_IAM \
-  --parameters \
-  ParameterKey=SSLCertificateARN,ParameterValue=arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f \
-  ParameterKey=LicenseCount,ParameterValue=999999 \
-  ParameterKey=DBUser,ParameterValue=chefadmin \
-  ParameterKey=DBPassword,ParameterValue=SuperSecurePassword \
-  ParameterKey=KeyName,ParameterValue=irving \
-  ParameterKey=VPC,ParameterValue=vpc-fa58989d \
-  ParameterKey=SSHSecurityGroup,ParameterValue=sg-bddcfbc4 \
-  'ParameterKey=LoadBalancerSubnets,ParameterValue="subnet-63c62b04,subnet-dc1611aa,subnet-0247365a"' \
-  'ParameterKey=ChefServerSubnets,ParameterValue="subnet-66c62b01,subnet-df1611a9,subnet-01473659"' \
-  'ParameterKey=NatGatewayIPs,ParameterValue="35.162.132.208"' \
-  ParameterKey=InstanceType,ParameterValue=c4.large \
-  ParameterKey=DBInstanceClass,ParameterValue=db.m4.large \
-  ParameterKey=ContactEmail,ParameterValue=irving@chef.io \
-  ParameterKey=ContactDept,ParameterValue=success
+  --parameters file://stack_parameters.json
 ```
 
 Note: For production instances it is recommended to use the CloudFormation console so that you can get a report of all changes before executing them.  Particularly pay attention to any resources that are being replaced.
