@@ -21,6 +21,10 @@ Parameters:
   LoadBalancerSubnets:
     Description: Provide a list of Subnet IDs for the ELB
     Type: List<AWS::EC2::Subnet::Id>
+  LoadBalancerScheme:
+    Description: Network Scheme for the ELB
+    Type: String
+    Default: internet-facing
   ChefServerSubnets:
     Description: Provide a list of Subnet IDs for the Chef Servers
     Type: List<AWS::EC2::Subnet::Id>
@@ -327,6 +331,7 @@ Resources:
         - !Ref LoadBalancerSecurityGroup
       Subnets: !Ref LoadBalancerSubnets
       # IpAddressType: dualstack
+      Scheme: !Ref LoadBalancerScheme
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-lb
