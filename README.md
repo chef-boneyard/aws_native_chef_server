@@ -42,7 +42,6 @@ aws cloudformation create-stack \
   ParameterKey=SSHSecurityGroup,ParameterValue=sg-bddcfbc4 \
   'ParameterKey=LoadBalancerSubnets,ParameterValue="subnet-63c62b04,subnet-dc1611aa,subnet-0247365a"' \
   'ParameterKey=ChefServerSubnets,ParameterValue="subnet-66c62b01,subnet-df1611a9,subnet-01473659"' \
-  'ParameterKey=NatGatewayIPs,ParameterValue="35.162.132.208"' \
   ParameterKey=InstanceType,ParameterValue=c4.large \
   ParameterKey=DBInstanceClass,ParameterValue=db.m4.large \
   ParameterKey=ContactEmail,ParameterValue=irving@chef.io \
