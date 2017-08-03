@@ -449,6 +449,7 @@ Resources:
                 opscode_erchef['db_pool_queue_max'] = 40
                 opscode_erchef['nginx_bookshelf_caching'] = :on
                 opscode_erchef['s3_url_expiry_window_size'] = '100%'
+                opscode_erchef['s3_parallel_ops_fanout'] = 10
                 opscode_erchef['search_provider'] = 'elasticsearch'
                 opscode_erchef['search_queue_mode'] = 'batch'
                 opscode_solr4['external'] = true
@@ -456,6 +457,7 @@ Resources:
                 opscode_solr4['elasticsearch_shard_count'] = ${ElasticSearchShardCount}
                 opscode_solr4['elasticsearch_replica_count'] = ${ElasticSearchReplicaCount}
                 bookshelf['storage_type'] = :sql
+                bookshelf['db_pool_size'] = 20
                 rabbitmq['enable'] = false
                 rabbitmq['management_enabled'] = false
                 rabbitmq['queue_length_monitor_enabled'] = false
@@ -482,6 +484,10 @@ Resources:
                 mkdir -p /var/log/opscode/nginx-esproxy
                 yum-config-manager --add-repo https://openresty.org/package/amazon/openresty.repo -y
                 yum install openresty -y
+                # trick to set the resolver dynamically
+                RESOLVER=$(grep nameserver /etc/resolv.conf | head -1 | cut -d' ' -f2)
+                sed -i.bak "s/REPLACEWITHRESOLVER/$RESOLVER/" /tmp/nginx.conf
+                # copy all config files into place
                 cp /tmp/*.conf /usr/local/openresty/nginx/conf/
                 service openresty start
 
