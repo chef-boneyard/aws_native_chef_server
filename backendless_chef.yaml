@@ -463,33 +463,19 @@ Resources:
                 rabbitmq['queue_length_monitor_enabled'] = false
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
-            /tmp/nginx.conf:
-              source: !Sub ${FilesLocation}nginx-esproxy.conf
-              context:
-                es_endpoint: !Sub ${ElasticsearchDomain.DomainEndpoint}
-            /var/opt/opscode/nginx-esproxy/etc/scripts/aws_creds.lua:
-              source: !Sub ${FilesLocation}aws_creds.lua
-            /var/opt/opscode/nginx-esproxy/etc/scripts/es_auth.lua:
-              source: !Sub ${FilesLocation}es_auth.lua
-              context:
-                region: !Ref AWS::Region
-            /var/opt/opscode/nginx-esproxy/etc/scripts/resty/aws_auth.lua:
-              source: !Sub ${FilesLocation}aws_auth.lua
-            /var/opt/opscode/nginx-esproxy/etc/scripts/resty/hmac.lua:
-              source: !Sub ${FilesLocation}hmac.lua
+            /usr/local/bin/aws-signing-proxy:
+              source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.1.1/aws-signing-proxy
+              mode: 000755
+            /etc/init/aws-signing-proxy.conf:
+              content: !Sub |
+                start on runlevel [2345]
+                stop on shutdown
+                respawn
+                exec /usr/local/bin/aws-signing-proxy -target ${ElasticsearchDomain.DomainEndpoint} -port 9200
           commands:
             01_start_es_proxy:
               command: !Sub |
-                mkdir -p /var/opt/opscode/nginx-esproxy/tmp/client_body
-                mkdir -p /var/log/opscode/nginx-esproxy
-                yum-config-manager --add-repo https://openresty.org/package/amazon/openresty.repo -y
-                yum install openresty -y
-                # trick to set the resolver dynamically
-                RESOLVER=$(grep nameserver /etc/resolv.conf | head -1 | cut -d' ' -f2)
-                sed -i.bak "s/REPLACEWITHRESOLVER/$RESOLVER/" /tmp/nginx.conf
-                # copy all config files into place
-                cp /tmp/*.conf /usr/local/openresty/nginx/conf/
-                service openresty start
+                initctl start aws-signing-proxy
 
             02_configure_chef_server:
               command: !Sub
