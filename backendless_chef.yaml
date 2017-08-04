@@ -447,6 +447,8 @@ Resources:
                 opscode_erchef['db_pool_init'] = 10
                 opscode_erchef['db_pool_max'] = 20
                 opscode_erchef['db_pool_queue_max'] = 40
+                opscode_erchef['keygen_cache_workers'] = 2
+                opscode_erchef['keygen_cache_size'] = 100
                 opscode_erchef['nginx_bookshelf_caching'] = :on
                 opscode_erchef['s3_url_expiry_window_size'] = '100%'
                 opscode_erchef['s3_parallel_ops_fanout'] = 10
