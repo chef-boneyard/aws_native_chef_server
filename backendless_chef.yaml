@@ -473,7 +473,7 @@ Resources:
                 start on runlevel [2345]
                 stop on shutdown
                 respawn
-                exec /usr/local/bin/aws-signing-proxy -target https://${ElasticsearchDomain.DomainEndpoint} -port 9200
+                exec /usr/local/bin/aws-signing-proxy -target https://${ElasticsearchDomain.DomainEndpoint} -port 9200 >> /var/log/aws-signing-proxy.log 2>&1
           commands:
             01_start_es_proxy:
               command: initctl start aws-signing-proxy
