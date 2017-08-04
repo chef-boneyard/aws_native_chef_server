@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.2
+Description: AWS Native Chef Server v2.3
 
 Parameters:
   ChefServerPackage:
