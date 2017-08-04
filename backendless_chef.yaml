@@ -707,7 +707,7 @@ Resources:
       AlarmActions: [!Ref FrontendAutoScaleDownPolicy]
       MetricName: CPUUtilization
       Namespace: AWS/EC2
-      ComparisonOperator: GreaterThanOrEqualToThreshold
+      ComparisonOperator: LessThanOrEqualToThreshold
       EvaluationPeriods: 10
       Period: 60
       Statistic: Average
