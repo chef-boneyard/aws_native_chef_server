@@ -90,7 +90,6 @@ Yes, it is significantly more robust and easier to operate.
 
 ### What improvements can be made to this template?
 
-- Fix an error where the partybus configuration file assumes that Postgres is in localhost
 - Support for restoring from an RDS Snapshot and existing secrets bucket
 - Investigate better secrets handling (AWS secrets service?)
 - Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or RedShift
