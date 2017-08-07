@@ -466,23 +466,14 @@ Resources:
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
             /usr/local/bin/aws-signing-proxy:
-<<<<<<< HEAD
               source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.1.2/aws-signing-proxy
-              mode: 000755
-=======
-              source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.1.1/aws-signing-proxy
               mode: '000755'
->>>>>>> bba11a110003b45c2d03d3c4733c27a08cb14dcb
             /etc/init/aws-signing-proxy.conf:
               content: !Sub |
                 start on runlevel [2345]
                 stop on shutdown
                 respawn
-<<<<<<< HEAD
-                exec /usr/local/bin/aws-signing-proxy -target ${ElasticsearchDomain.DomainEndpoint} -port 9200 -listen-address 127.0.0.1
-=======
-                exec /usr/local/bin/aws-signing-proxy -target https://${ElasticsearchDomain.DomainEndpoint} -port 9200 >> /var/log/aws-signing-proxy.log 2>&1
->>>>>>> bba11a110003b45c2d03d3c4733c27a08cb14dcb
+                exec /usr/local/bin/aws-signing-proxy -target https://${ElasticsearchDomain.DomainEndpoint} -port 9200 -listen-address 127.0.0.1 >> /var/log/aws-signing-proxy.log 2>&1
           commands:
             01_start_es_proxy:
               command: initctl start aws-signing-proxy
