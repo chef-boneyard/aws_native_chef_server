@@ -47,7 +47,14 @@ function server_upgrade () {
   chef-manage-ctl reconfigure --accept-license
 }
 
+function prevent_dns_overload {
+  # erchef will constantly try to DNS lookup the bookshelf hostname, which is simply itself.
+  # as a workaround, we're just going to put the hostname
+  echo "`hostname -i` `hostname -f`" >> /etc/hosts
+}
+
 # Here we go
+prevent_dns_overload
 
 # If we're not bootstrap OR a config already exists, sync down the rest of the secrets first before reconfiguring
 if [ -z "${BOOTSTRAP_TAGS}" ] || [ -n "${CONFIGS_EXIST}" ] ; then
