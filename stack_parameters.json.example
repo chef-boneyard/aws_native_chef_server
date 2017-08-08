@@ -40,6 +40,10 @@
     "ParameterValue": "subnet-66c62b01,subnet-df1611a9,subnet-01473659"
   },
   {
+    "ParameterKey":   "ChefServerAssociatePublicIpAddress",
+    "ParameterValue": "true"
+  },
+  {
     "ParameterKey":   "InstanceType",
     "ParameterValue": "c4.large"
   },

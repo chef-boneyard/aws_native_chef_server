@@ -31,6 +31,13 @@ Parameters:
   ChefServerSubnets:
     Description: Provide a list of Subnet IDs for the Chef Servers
     Type: List<AWS::EC2::Subnet::Id>
+  ChefServerAssociatePublicIpAddress:
+    Description: Assign public IP addresses to the Chef Servers or not
+    Type: String
+    Default: true
+    AllowedValues:
+    - 'true'
+    - 'false'
   DBPassword:
     Description: Enter DB Password
     NoEcho: true
@@ -378,7 +385,7 @@ Resources:
   ServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      AssociatePublicIpAddress: true
+      AssociatePublicIpAddress: !Ref ChefServerAssociatePublicIpAddress
       EbsOptimized: true
       BlockDeviceMappings:
       - DeviceName: /dev/xvda
