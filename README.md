@@ -68,9 +68,11 @@ If a new Chef Server or Manage package comes out, the process for upgrading is s
   - Confirm in the ChangeSet that this will only `ServerLaunchConfig` resource and no others!
 2. Wait for the update-stack to run, it may take a few minutes for the new metadata to be available
 3. Terminate the bootstrap frontend instance (aka `mystack-chef-bootstrap-frontend`). AutoScale will launch a new one within a few seconds that will pick up the new package versions and upgrade.
-4. Terminate all of the non-bootstrap frontend instances.  the same process will happen.
+4. SSH to the new bootstrap frontend and tail the `/var/log/cfn-init.log` - waiting until you see an `[INFO] syncing bootstrap secrets up to S3` message which lets you know that the upgrade was successful.  There may be a minute or two with no output, because the output isn't live streamed.
+  - Caution: if significant database schema changes were made then your remaining frontends may begin throwing 500 errors for certain types of operations.  This doesn't happen often, but you should always perform these test upgrades in a non-production cluster first to understand the ramifications of your change.
+5. Terminate all of the non-bootstrap frontend instances.  the same process will happen.
   - alternatively, temporarily increase the desired capacity to launch new instances and then decrease it back to the original level to terminate the old instances
-5. You're up to date!
+6. You're up to date!
 
 # FAQ
 
