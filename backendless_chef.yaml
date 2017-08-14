@@ -473,14 +473,14 @@ Resources:
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
             /usr/local/bin/aws-signing-proxy:
-              source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.2.0/aws-signing-proxy
+              source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.3.0/aws-signing-proxy
               mode: '000755'
             /etc/init/aws-signing-proxy.conf:
               content: !Sub |
                 start on runlevel [2345]
                 stop on shutdown
                 respawn
-                exec /usr/local/bin/aws-signing-proxy >> /var/log/aws-signing-proxy.log 2>&1
+                exec /usr/local/bin/aws-signing-proxy 
             /etc/aws-signing-proxy.yml:
               content: !Sub |
                 listen-address: 127.0.0.1
