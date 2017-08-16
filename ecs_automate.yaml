@@ -20,7 +20,7 @@ Parameters:
   InstanceType:
     Description: EC2 instance type
     Type: String
-    Default: m4.large
+    Default: m4.xlarge
     AllowedValues: [t2.micro, t2.small, t2.medium, t2.large, m3.medium, m3.large,
       m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge,
       c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, c3.large, c3.xlarge,
@@ -83,6 +83,13 @@ Resources:
       InstanceType: !Ref 'InstanceType'
       IamInstanceProfile: !Ref 'EC2InstanceProfile'
       KeyName: !Ref 'KeyName'
+      EbsOptimized: true
+      BlockDeviceMappings:
+      - DeviceName: /dev/xvda
+        Ebs:
+          VolumeSize: 200
+          VolumeType: gp2
+          DeleteOnTermination: true
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
@@ -197,7 +204,6 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Sub ${AWS::StackName}-automate
-      # NetworkMode: host
       ContainerDefinitions:
       - Name: postgresql-data
         Cpu: '10'
@@ -234,8 +240,6 @@ Resources:
         MountPoints:
         - ContainerPath: /hab/svc/postgresql/data
           SourceVolume: postgresql-data
-        # PortMappings:
-        # - ContainerPort: 5432
         VolumesFrom:
         - SourceContainer: postgresql-data
           ReadOnly: false
@@ -265,8 +269,6 @@ Resources:
             awslogs-group: !Ref 'CloudwatchLogsGroup'
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
-        # PortMappings:
-        # - ContainerPort: 5672
       - Name: elasticsearch
         Hostname: elasticsearch
         Cpu: 10
@@ -288,8 +290,6 @@ Resources:
             awslogs-group: !Ref 'CloudwatchLogsGroup'
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
-        # PortMappings:
-        # - ContainerPort: 9200
       - Name: logstash
         Cpu: 10
         Essential: 'true'
@@ -368,7 +368,7 @@ Resources:
         Hostname: compliance
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/workflow-server:stable
+        Image: chefdemo/compliance:stable
         Memory: 768
         Links:
         - postgresql
@@ -401,11 +401,9 @@ Resources:
         - --peer
         - postgresql
         - --bind
-        - database:postgresql.default
-        - --bind
         - elasticsearch:elasticsearch.default
         - --bind
-        - rabbitmq:rabbitmq.default
+        - workflow:workflow-server.default
         - --bind
         - compliance:compliance.default
         - --bind
@@ -463,7 +461,7 @@ Resources:
     DependsOn: ECSALB
     Properties:
       HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /
+      HealthCheckPath: /viz/
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
