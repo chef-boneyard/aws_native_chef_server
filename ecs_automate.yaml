@@ -1,0 +1,805 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the ECS instances.
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Select a VPC that allows instances access to the Internet.
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Select at least two subnets in your selected VPC.
+  DesiredCapacity:
+    Type: Number
+    Default: '1'
+    Description: Number of instances to launch in your ECS cluster.
+  MaxSize:
+    Type: Number
+    Default: '2'
+    Description: Maximum number of instances that can be launched in your ECS cluster.
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: m4.large
+    AllowedValues: [t2.micro, t2.small, t2.medium, t2.large, m3.medium, m3.large,
+      m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge,
+      c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, c3.large, c3.xlarge,
+      c3.2xlarge, c3.4xlarge, c3.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge,
+      r3.8xlarge, i2.xlarge, i2.2xlarge, i2.4xlarge, i2.8xlarge]
+    ConstraintDescription: Please choose a valid instance type.
+  ContactDept:
+    Description: Contact department for billing purposes
+    Type: String
+  ContactEmail:
+    Description: Contact email for Cloudwatch notifications and instance tagging
+    Type: String
+
+Mappings:
+  AWSRegionToAMI:
+    us-east-1:
+      AMIID: ami-04351e12
+    us-east-2:
+      AMIID: ami-207b5a45
+    us-west-1:
+      AMIID: ami-7d664a1d
+    us-west-2:
+      AMIID: ami-57d9cd2e
+
+Resources:
+# First, define the ECS cluster: an autoscaling group of EC2 instances running the special ECS AMI
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  ECSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref SubnetIds
+      LaunchConfigurationName: !Ref 'ContainerInstances'
+      MinSize: '1'
+      MaxSize: !Ref 'MaxSize'
+      DesiredCapacity: !Ref 'DesiredCapacity'
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-dockerhost
+        PropagateAtLaunch: true
+      - Key: X-Dept
+        Value: !Ref ContactDept
+        PropagateAtLaunch: true
+      - Key: X-Contact
+        Value: !Ref ContactEmail
+        PropagateAtLaunch: true
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: 'true'
+
+  ContainerInstances:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMIID]
+      SecurityGroups: [!Ref 'EcsSecurityGroup']
+      InstanceType: !Ref 'InstanceType'
+      IamInstanceProfile: !Ref 'EC2InstanceProfile'
+      KeyName: !Ref 'KeyName'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          yum install -y aws-cfn-bootstrap
+          # up the vm.max_map_count for elasticsearch
+          sysctl -w vm.max_map_count=262144
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ec2.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ['ecs:CreateCluster', 'ecs:DeregisterContainerInstance', 'ecs:DiscoverPollEndpoint',
+              'ecs:Poll', 'ecs:RegisterContainerInstance', 'ecs:StartTelemetrySession',
+              'ecs:Submit*', 'logs:CreateLogStream', 'logs:PutLogEvents']
+            Resource: '*'
+
+  AutoscalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [application-autoscaling.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: service-autoscaling
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ['application-autoscaling:*', 'cloudwatch:DescribeAlarms', 'cloudwatch:PutMetricAlarm',
+              'ecs:DescribeServices', 'ecs:UpdateService']
+            Resource: '*'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles: [!Ref 'EC2Role']
+
+  EcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Security Group
+      VpcId: !Ref VPC
+
+  EcsSecurityGroupHTTPinbound:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'EcsSecurityGroup'
+      IpProtocol: tcp
+      FromPort: '80'
+      ToPort: '80'
+      CidrIp: 0.0.0.0/0
+
+  EcsSecurityGroupSSHinbound:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'EcsSecurityGroup'
+      IpProtocol: tcp
+      FromPort: '22'
+      ToPort: '22'
+      CidrIp: 0.0.0.0/0
+
+  EcsSecurityGroupALBports:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'EcsSecurityGroup'
+      IpProtocol: tcp
+      FromPort: '31000'
+      ToPort: '61000'
+      SourceSecurityGroupId: !Ref 'EcsSecurityGroup'
+
+  CloudwatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['-', [ECSLogGroup, !Ref 'AWS::StackName']]
+      RetentionInDays: 14
+
+
+################################################################################
+#  Combo Service - runs all of the containers in a single task definition (1 host), so linking can work
+################################################################################
+  AutomateService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListener
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LoadBalancers:
+      - ContainerName: automate-nginx
+        ContainerPort: 80
+        TargetGroupArn: !Ref ECSTG
+      Role: !Ref ECSServiceRole
+      TaskDefinition: !Ref AutomateTask
+
+  AutomateTask:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-automate
+      # NetworkMode: host
+      ContainerDefinitions:
+      - Name: postgresql-data
+        Cpu: '10'
+        Essential: 'false'
+        Image: chefdemo/postgresql-data:stable
+        Memory: 300
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+        MountPoints:
+        - ContainerPath: /hab/svc/postgresql/data
+          SourceVolume: postgresql-data
+      - Name: postgresql
+        Hostname: postgresql
+        Cpu: 10
+        Essential: 'true'
+        Image: chefdemo/postgresql:stable
+        Memory: 300
+        Environment:
+        - Name: HAB_POSTGRESQL
+          Value: |
+            [superuser]
+            name = 'hab'
+            password = 'chefrocks'
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+        MountPoints:
+        - ContainerPath: /hab/svc/postgresql/data
+          SourceVolume: postgresql-data
+        # PortMappings:
+        # - ContainerPort: 5432
+        VolumesFrom:
+        - SourceContainer: postgresql-data
+          ReadOnly: false
+      - Name: rabbitmq
+        Hostname: rabbitmq
+        Cpu: 10
+        Essential: 'true'
+        Image: chefdemo/rabbitmq:stable
+        Memory: 512
+        Links:
+        - postgresql
+        Command:
+        - --peer
+        - postgresql
+        Environment:
+        - Name: HAB_RABBITMQ
+          Value: |
+            [rabbitmq]
+            default_vhost = '/insights'
+            default_user = 'insights'
+            default_pass = 'chefrocks'
+            [rabbitmq.management]
+            enabled = true
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+        # PortMappings:
+        # - ContainerPort: 5672
+      - Name: elasticsearch
+        Hostname: elasticsearch
+        Cpu: 10
+        Essential: 'true'
+        Image: chefdemo/elasticsearch:stable
+        Memory: 2048
+        Links:
+        - postgresql
+        Command:
+        - --peer
+        - postgresql
+        Ulimits:
+        - Name: nofile
+          HardLimit: 262144
+          SoftLimit: 262144
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+        # PortMappings:
+        # - ContainerPort: 9200
+      - Name: logstash
+        Cpu: 10
+        Essential: 'true'
+        Image: chefdemo/logstash:stable
+        Memory: 2048
+        Links:
+        - rabbitmq
+        - elasticsearch
+        Command:
+        - --peer
+        - rabbitmq
+        - --bind
+        - elasticsearch:elasticsearch.default
+        - --bind
+        - rabbitmq:rabbitmq.default
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+      - Name: workflow
+        Hostname: workflow
+        Cpu: 10
+        Essential: 'true'
+        Image: chefdemo/workflow-server:stable
+        Memory: 768
+        Links:
+        - postgresql
+        - rabbitmq
+        - elasticsearch
+        Command:
+        - --peer
+        - postgresql
+        - --bind
+        - database:postgresql.default
+        - --bind
+        - elasticsearch:elasticsearch.default
+        - --bind
+        - rabbitmq:rabbitmq.default
+        MountPoints:
+        - ContainerPath: /var/opt/delivery/delivery/etc
+          SourceVolume: maintenance
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+      - Name: notifications
+        Hostname: notifications
+        Cpu: 10
+        Essential: 'true'
+        Image: chefdemo/notifications:stable
+        Memory: 768
+        Links:
+        - postgresql
+        - rabbitmq
+        - elasticsearch
+        Command:
+        - --peer
+        - postgresql
+        - --bind
+        - database:postgresql.default
+        - --bind
+        - elasticsearch:elasticsearch.default
+        - --bind
+        - rabbitmq:rabbitmq.default
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+      - Name: compliance
+        Hostname: compliance
+        Cpu: 10
+        Essential: 'true'
+        Image: chefdemo/workflow-server:stable
+        Memory: 768
+        Links:
+        - postgresql
+        Command:
+        - --peer
+        - postgresql
+        - --bind
+        - elasticsearch:elasticsearch.default
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+      - Name: automate-nginx
+        Hostname: automate-nginx
+        Cpu: 10
+        Essential: 'true'
+        Image: chefdemo/automate-nginx:stable
+        Memory: 300
+        PortMappings:
+        - ContainerPort: 80
+        - ContainerPort: 443
+        Links:
+        - postgresql
+        - rabbitmq
+        - elasticsearch
+        - compliance
+        Command:
+        - --peer
+        - postgresql
+        - --bind
+        - database:postgresql.default
+        - --bind
+        - elasticsearch:elasticsearch.default
+        - --bind
+        - rabbitmq:rabbitmq.default
+        - --bind
+        - compliance:compliance.default
+        - --bind
+        - notifications:notifications.default
+        MountPoints:
+        - ContainerPath: /var/opt/delivery/delivery/etc
+          SourceVolume: maintenance
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+      Volumes:
+      - Name: postgresql-data
+      - Name: maintenance
+
+  ECSALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: ECSALB
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets: !Ref SubnetIds
+      SecurityGroups: [!Ref 'EcsSecurityGroup']
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: ECSServiceRole
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref 'ECSTG'
+      LoadBalancerArn: !Ref 'ECSALB'
+      Port: '80'
+      Protocol: HTTP
+
+  ECSALBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: ALBListener
+    Properties:
+      Actions:
+      - Type: forward
+        TargetGroupArn: !Ref 'ECSTG'
+      Conditions:
+      - Field: path-pattern
+        Values: [/]
+      ListenerArn: !Ref 'ALBListener'
+      Priority: 1
+
+  ECSTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: ECSALB
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Name: ECSTG
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+
+#
+# ################################################################################
+# #  PostgreSQL service
+# ################################################################################
+#   PostgresService:
+#     Type: AWS::ECS::Service
+#     # DependsOn: ALBListener
+#     Properties:
+#       Cluster: !Ref ECSCluster
+#       DesiredCount: 1
+#       # LoadBalancers:
+#       # - ContainerName: simple-app
+#       #   ContainerPort: '80'
+#       #   TargetGroupArn: !Ref 'ECSTG'
+#       # Role: !Ref 'ECSServiceRole'
+#       TaskDefinition: !Ref postgresql
+#
+#   postgresql:
+#     Type: AWS::ECS::TaskDefinition
+#     Properties:
+#       Family: !Sub ${AWS::StackName}-postgresql
+#       # NetworkMode: host
+#       ContainerDefinitions:
+#       - Name: postgresql-data
+#         Cpu: '10'
+#         Essential: 'false'
+#         Image: chefdemo/postgresql-data:stable
+#         Memory: 300
+#         LogConfiguration:
+#           LogDriver: awslogs
+#           Options:
+#             awslogs-group: !Ref 'CloudwatchLogsGroup'
+#             awslogs-region: !Ref 'AWS::Region'
+#             awslogs-stream-prefix: !Sub ${AWS::StackName}
+#         MountPoints:
+#         - ContainerPath: /hab/svc/postgresql/data
+#           SourceVolume: postgresql-data
+#       - Name: postgresql
+#         Hostname: postgresql
+#         Cpu: 10
+#         Essential: 'true'
+#         Image: chefdemo/postgresql:stable
+#         Memory: 300
+#         Environment:
+#         - Name: HAB_POSTGRESQL
+#           Value: |
+#             [superuser]
+#             name = 'hab'
+#             password = 'chefrocks'
+#         LogConfiguration:
+#           LogDriver: awslogs
+#           Options:
+#             awslogs-group: !Ref 'CloudwatchLogsGroup'
+#             awslogs-region: !Ref 'AWS::Region'
+#             awslogs-stream-prefix: !Sub ${AWS::StackName}
+#         MountPoints:
+#         - ContainerPath: /hab/svc/postgresql/data
+#           SourceVolume: postgresql-data
+#         PortMappings:
+#         - ContainerPort: 5432
+#         VolumesFrom:
+#         - SourceContainer: postgresql-data
+#           ReadOnly: false
+#       Volumes:
+#       - Name: postgresql-data
+#
+# ################################################################################
+# #  RabbitMQ service
+# ################################################################################
+#   RabbitmqService:
+#     Type: AWS::ECS::Service
+#     DependsOn: PostgresService
+#     Properties:
+#       Cluster: !Ref ECSCluster
+#       DesiredCount: 1
+#       TaskDefinition: !Ref RabbitmqTask
+#
+#   RabbitmqTask:
+#     Type: AWS::ECS::TaskDefinition
+#     Properties:
+#       Family: !Sub ${AWS::StackName}-rabbitmq
+#       # NetworkMode: host
+#       ContainerDefinitions:
+#       - Name: rabbitmq
+#         Hostname: rabbitmq
+#         Cpu: 10
+#         Essential: 'true'
+#         Image: chefdemo/rabbitmq:stable
+#         Memory: 512
+#         Links:
+#         - postgresql
+#         Command:
+#         - --peer
+#         - postgresql
+#         Environment:
+#         - Name: HAB_RABBITMQ
+#           Value: |
+#             [rabbitmq]
+#             default_vhost = '/insights'
+#             default_user = 'insights'
+#             default_pass = 'chefrocks'
+#             [rabbitmq.management]
+#             enabled = true
+#         LogConfiguration:
+#           LogDriver: awslogs
+#           Options:
+#             awslogs-group: !Ref 'CloudwatchLogsGroup'
+#             awslogs-region: !Ref 'AWS::Region'
+#             awslogs-stream-prefix: !Sub ${AWS::StackName}
+#         PortMappings:
+#         - ContainerPort: 5672
+#
+# ################################################################################
+# #  Elasticsearch service
+# ################################################################################
+#   ElasticsearchService:
+#     Type: AWS::ECS::Service
+#     DependsOn: PostgresService
+#     Properties:
+#       Cluster: !Ref 'ECSCluster'
+#       DesiredCount: '1'
+#       TaskDefinition: !Ref ElasticsearchTask
+#
+#   ElasticsearchTask:
+#     Type: AWS::ECS::TaskDefinition
+#     Properties:
+#       Family: !Sub ${AWS::StackName}-elasticsearch
+#       # NetworkMode: host
+#       ContainerDefinitions:
+#       - Name: elasticsearch
+#         Hostname: elasticsearch
+#         Cpu: 10
+#         Essential: 'true'
+#         Image: chefdemo/elasticsearch:stable
+#         Memory: 2048
+#         Links:
+#         - postgresql
+#         Command:
+#         - --peer
+#         - postgresql
+#         Ulimits:
+#         - Name: nofile
+#           HardLimit: 262144
+#           SoftLimit: 262144
+#         LogConfiguration:
+#           LogDriver: awslogs
+#           Options:
+#             awslogs-group: !Ref 'CloudwatchLogsGroup'
+#             awslogs-region: !Ref 'AWS::Region'
+#             awslogs-stream-prefix: !Sub ${AWS::StackName}
+#         PortMappings:
+#         - ContainerPort: 9200
+#
+# ################################################################################
+# #  Logstash service
+# ################################################################################
+#   LogstashService:
+#     Type: AWS::ECS::Service
+#     DependsOn: RabbitmqService
+#     Properties:
+#       Cluster: !Ref 'ECSCluster'
+#       DesiredCount: '1'
+#       TaskDefinition: !Ref LogstashTask
+#
+#   LogstashTask:
+#     Type: AWS::ECS::TaskDefinition
+#     Properties:
+#       Family: !Sub ${AWS::StackName}-logstash
+#       # NetworkMode: host
+#       ContainerDefinitions:
+#       - Name: logstash
+#         Cpu: 10
+#         Essential: 'true'
+#         Image: chefdemo/logstash:stable
+#         Memory: 2048
+#         Links:
+#         - rabbitmq
+#         - elasticsearch
+#         Command:
+#         - --peer
+#         - rabbitmq
+#         - --bind
+#         - elasticsearch:elasticsearch.default
+#         - --bind
+#         - rabbitmq:rabbitmq.default
+#         LogConfiguration:
+#           LogDriver: awslogs
+#           Options:
+#             awslogs-group: !Ref 'CloudwatchLogsGroup'
+#             awslogs-region: !Ref 'AWS::Region'
+#             awslogs-stream-prefix: !Sub ${AWS::StackName}
+
+################################################################################
+
+  ECSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ecs.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ['elasticloadbalancing:DeregisterInstancesFromLoadBalancer', 'elasticloadbalancing:DeregisterTargets',
+              'elasticloadbalancing:Describe*', 'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
+              'elasticloadbalancing:RegisterTargets', 'ec2:Describe*', 'ec2:AuthorizeSecurityGroupIngress']
+            Resource: '*'
+  # ECSALB:
+  #   Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  #   Properties:
+  #     Name: ECSALB
+  #     Scheme: internet-facing
+  #     LoadBalancerAttributes:
+  #     - Key: idle_timeout.timeout_seconds
+  #       Value: '30'
+  #     Subnets: !Ref SubnetIds
+  #     SecurityGroups: [!Ref 'EcsSecurityGroup']
+  #
+  # ALBListener:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   DependsOn: ECSServiceRole
+  #   Properties:
+  #     DefaultActions:
+  #     - Type: forward
+  #       TargetGroupArn: !Ref 'ECSTG'
+  #     LoadBalancerArn: !Ref 'ECSALB'
+  #     Port: '80'
+  #     Protocol: HTTP
+  #
+  # ECSALBListenerRule:
+  #   Type: AWS::ElasticLoadBalancingV2::ListenerRule
+  #   DependsOn: ALBListener
+  #   Properties:
+  #     Actions:
+  #     - Type: forward
+  #       TargetGroupArn: !Ref 'ECSTG'
+  #     Conditions:
+  #     - Field: path-pattern
+  #       Values: [/]
+  #     ListenerArn: !Ref 'ALBListener'
+  #     Priority: 1
+  #
+  # ECSTG:
+  #   Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  #   DependsOn: ECSALB
+  #   Properties:
+  #     HealthCheckIntervalSeconds: 10
+  #     HealthCheckPath: /
+  #     HealthCheckProtocol: HTTP
+  #     HealthCheckTimeoutSeconds: 5
+  #     HealthyThresholdCount: 2
+  #     Name: ECSTG
+  #     Port: 80
+  #     Protocol: HTTP
+  #     UnhealthyThresholdCount: 2
+  #     VpcId: !Ref VPC
+
+  # service:
+  #   Type: AWS::ECS::Service
+  #   DependsOn: ALBListener
+  #   Properties:
+  #     Cluster: !Ref 'ECSCluster'
+  #     DesiredCount: '1'
+  #     LoadBalancers:
+  #     - ContainerName: simple-app
+  #       ContainerPort: '80'
+  #       TargetGroupArn: !Ref 'ECSTG'
+  #     Role: !Ref 'ECSServiceRole'
+  #     TaskDefinition: !Ref 'taskdefinition'
+
+
+
+  # ServiceScalingTarget:
+  #   Type: AWS::ApplicationAutoScaling::ScalableTarget
+  #   DependsOn: service
+  #   Properties:
+  #     MaxCapacity: 2
+  #     MinCapacity: 1
+  #     ResourceId: !Join ['', [service/, !Ref 'ECSCluster', /, !GetAtt [service, Name]]]
+  #     RoleARN: !GetAtt [AutoscalingRole, Arn]
+  #     ScalableDimension: ecs:service:DesiredCount
+  #     ServiceNamespace: ecs
+
+  # ServiceScalingPolicy:
+  #   Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  #   Properties:
+  #     PolicyName: AStepPolicy
+  #     PolicyType: StepScaling
+  #     ScalingTargetId: !Ref 'ServiceScalingTarget'
+  #     StepScalingPolicyConfiguration:
+  #       AdjustmentType: PercentChangeInCapacity
+  #       Cooldown: 60
+  #       MetricAggregationType: Average
+  #       StepAdjustments:
+  #       - MetricIntervalLowerBound: 0
+  #         ScalingAdjustment: 200
+
+  # ALB500sAlarmScaleUp:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     EvaluationPeriods: '1'
+  #     Statistic: Average
+  #     Threshold: '10'
+  #     AlarmDescription: Alarm if our ALB generates too many HTTP 500s.
+  #     Period: '60'
+  #     AlarmActions: [!Ref 'ServiceScalingPolicy']
+  #     Namespace: AWS/ApplicationELB
+  #     Dimensions:
+  #     - Name: ECSService
+  #       Value: !Ref 'service'
+  #     ComparisonOperator: GreaterThanThreshold
+  #     MetricName: HTTPCode_ELB_5XX_Count
+
+
+# Outputs:
+  # ecsservice:
+  #   Value: !Ref 'service'
+  # ecscluster:
+  #   Value: !Ref 'ECSCluster'
+  # ECSALB:
+  #   Description: Your ALB DNS URL
+  #   Value: !Join ['', [!GetAtt [ECSALB, DNSName]]]
+  # taskdef:
+  #   Value: !Ref 'taskdefinition'

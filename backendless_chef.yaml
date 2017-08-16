@@ -120,6 +120,14 @@ Parameters:
   ContactEmail:
     Description: Contact email for Cloudwatch notifications and instance tagging
     Type: String
+  ChefAutomateServerUrl:
+    Description: The URL of the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
+    Type: String
+    Default: ''
+  ChefAutomateToken:
+    Description: The secret token used to communicate with the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
+    Type: String
+    Default: ''
 
 Conditions:
   CreateChefServerIamRole:
@@ -472,6 +480,11 @@ Resources:
                 rabbitmq['queue_length_monitor_enabled'] = false
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
+                # special handling for Chef Automate URL and Token which might be empty strings
+                unless '${ChefAutomateServerUrl}' == '' && '${ChefAutomateToken}' == ''
+                 data_collector['root_url'] = '${ChefAutomateServerUrl}'
+                 data_collector['token'] = '${ChefAutomateToken}'
+                end
             /usr/local/bin/aws-signing-proxy:
               source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.1.2/aws-signing-proxy
               mode: '000755'
@@ -491,6 +504,8 @@ Resources:
                 export BUCKET=${S3BUCKET}
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
+                export AUTOMATE_URL="${ChefAutomateServerUrl}"
+                export AUTOMATE_TOKEN="${ChefAutomateToken}"
                 curl -s ${FilesLocation}main.sh | bash -x
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
 
@@ -1168,4 +1183,17 @@ Resources:
             ]
           }
 
-Outputs: {}
+Outputs:
+  ChefServerURL:
+    Description: The URL of the Chef Server
+    Value: !Sub https://${ChefALB.DNSName}
+    Export:
+      Name: !Sub ${AWS::StackName}-ChefServerURL
+
+  ChefSecretsLocation:
+    Description: The S3 bucket location where config files and secrets are stored
+    Value: !Sub
+    - | s3://${S3BUCKET}/${AWS::StackName}/
+    - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
+    Export:
+      Name: !Sub ${AWS::StackName}-ChefSecretsLocation
