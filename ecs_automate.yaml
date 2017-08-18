@@ -8,14 +8,14 @@ Parameters:
     Description: Select a VPC that allows instances access to the Internet.
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
-    Description: Select at least two subnets in your selected VPC.
+    Description: Provide exactly THREE (3) subnets in your selected VPC.
   DesiredCapacity:
     Type: Number
     Default: '1'
     Description: Number of instances to launch in your ECS cluster.
   MaxSize:
     Type: Number
-    Default: '2'
+    Default: '3'
     Description: Maximum number of instances that can be launched in your ECS cluster.
   InstanceType:
     Description: EC2 instance type
@@ -27,23 +27,46 @@ Parameters:
       c3.2xlarge, c3.4xlarge, c3.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge,
       r3.8xlarge, i2.xlarge, i2.2xlarge, i2.4xlarge, i2.8xlarge]
     ConstraintDescription: Please choose a valid instance type.
+  ElasticSearchInstanceType:
+    Description: The Instance type to use for ElasticSearch instances (Note, must have ephemeral storage, the instance type affects the total amount of elasticsearch storage. i2 strongly recommended)
+    Type: String
+    Default: 'i2.xlarge.elasticsearch'
+    AllowedValues: ['i2.xlarge.elasticsearch', 'i2.2xlarge.elasticsearch', 'm3.medium.elasticsearch',
+      'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch', 'r3.large.elasticsearch',
+      'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
+  ElasticSearchShardCount:
+    Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
+    Default: 3
+    Type: Number
+  ElasticSearchReplicaCount:
+    Description: Replication factor for ElasticSearch shards (how many extra copies to keep)
+    Default: 1
+    Type: Number
   ContactDept:
     Description: Contact department for billing purposes
     Type: String
   ContactEmail:
     Description: Contact email for Cloudwatch notifications and instance tagging
     Type: String
+  DBPassword:
+    Description: Enter DB Password
+    NoEcho: true
+    Type: String
+  DBUser:
+    Description: Enter DB User Name
+    Default: delivery
+    Type: String
 
 Mappings:
   AWSRegionToAMI:
     us-east-1:
-      AMIID: ami-04351e12
+      AMIID: ami-d61027ad
     us-east-2:
-      AMIID: ami-207b5a45
+      AMIID: ami-bb8eaede
     us-west-1:
-      AMIID: ami-7d664a1d
+      AMIID: ami-514e6431
     us-west-2:
-      AMIID: ami-57d9cd2e
+      AMIID: ami-c6f81abe
 
 Resources:
 # First, define the ECS cluster: an autoscaling group of EC2 instances running the special ECS AMI
@@ -79,9 +102,9 @@ Resources:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMIID]
-      SecurityGroups: [!Ref 'EcsSecurityGroup']
-      InstanceType: !Ref 'InstanceType'
-      IamInstanceProfile: !Ref 'EC2InstanceProfile'
+      SecurityGroups: [!Ref EcsSecurityGroup]
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref EC2InstanceProfile
       KeyName: !Ref 'KeyName'
       EbsOptimized: true
       BlockDeviceMappings:
@@ -93,8 +116,19 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
+          # configure NFS client
+          EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
+          EC2_REGION=${AWS::Region}
+          EFS_FILE_SYSTEM_ID=${ECSFileSystem}
+          NFS_SRC=$EC2_AVAIL_ZONE.$EFS_FILE_SYSTEM_ID.efs.$EC2_REGION.amazonaws.com
+          yum install -y nfs-utils aws-cfn-bootstrap
+
+          echo "$NFS_SRC:/ /mnt/efs nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+          mkdir -p /mnt/efs
+          mount -a
+          mkdir -p /mnt/efs/${AWS::StackName}
+
           echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-          yum install -y aws-cfn-bootstrap
           # up the vm.max_map_count for elasticsearch
           sysctl -w vm.max_map_count=262144
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
@@ -113,11 +147,18 @@ Resources:
       - PolicyName: ecs-service
         PolicyDocument:
           Statement:
+          # default actions as needed for ECS cluster operations
           - Effect: Allow
             Action: ['ecs:CreateCluster', 'ecs:DeregisterContainerInstance', 'ecs:DiscoverPollEndpoint',
               'ecs:Poll', 'ecs:RegisterContainerInstance', 'ecs:StartTelemetrySession',
               'ecs:Submit*', 'logs:CreateLogStream', 'logs:PutLogEvents']
             Resource: '*'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles: [!Ref 'EC2Role']
 
   AutoscalingRole:
     Type: AWS::IAM::Role
@@ -137,12 +178,6 @@ Resources:
             Action: ['application-autoscaling:*', 'cloudwatch:DescribeAlarms', 'cloudwatch:PutMetricAlarm',
               'ecs:DescribeServices', 'ecs:UpdateService']
             Resource: '*'
-
-  EC2InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Path: /
-      Roles: [!Ref 'EC2Role']
 
   EcsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -183,7 +218,6 @@ Resources:
       LogGroupName: !Join ['-', [ECSLogGroup, !Ref 'AWS::StackName']]
       RetentionInDays: 14
 
-
 ################################################################################
 #  Combo Service - runs all of the containers in a single task definition (1 host), so linking can work
 ################################################################################
@@ -205,55 +239,12 @@ Resources:
     Properties:
       Family: !Sub ${AWS::StackName}-automate
       ContainerDefinitions:
-      - Name: postgresql-data
-        Cpu: '10'
-        Essential: 'false'
-        Image: chefdemo/postgresql-data:stable
-        Memory: 300
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref 'CloudwatchLogsGroup'
-            awslogs-region: !Ref 'AWS::Region'
-            awslogs-stream-prefix: !Sub ${AWS::StackName}
-        MountPoints:
-        - ContainerPath: /hab/svc/postgresql/data
-          SourceVolume: postgresql-data
-      - Name: postgresql
-        Hostname: postgresql
-        Cpu: 10
-        Essential: 'true'
-        Image: chefdemo/postgresql:stable
-        Memory: 300
-        Environment:
-        - Name: HAB_POSTGRESQL
-          Value: |
-            [superuser]
-            name = 'hab'
-            password = 'chefrocks'
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref 'CloudwatchLogsGroup'
-            awslogs-region: !Ref 'AWS::Region'
-            awslogs-stream-prefix: !Sub ${AWS::StackName}
-        MountPoints:
-        - ContainerPath: /hab/svc/postgresql/data
-          SourceVolume: postgresql-data
-        VolumesFrom:
-        - SourceContainer: postgresql-data
-          ReadOnly: false
       - Name: rabbitmq
         Hostname: rabbitmq
         Cpu: 10
         Essential: 'true'
         Image: chefdemo/rabbitmq:stable
         Memory: 512
-        Links:
-        - postgresql
-        Command:
-        - --peer
-        - postgresql
         Environment:
         - Name: HAB_RABBITMQ
           Value: |
@@ -276,10 +267,10 @@ Resources:
         Image: chefdemo/elasticsearch:stable
         Memory: 2048
         Links:
-        - postgresql
+        - rabbitmq
         Command:
         - --peer
-        - postgresql
+        - rabbitmq
         Ulimits:
         - Name: nofile
           HardLimit: 262144
@@ -317,15 +308,21 @@ Resources:
         Essential: 'true'
         Image: chefdemo/workflow-server:stable
         Memory: 768
+        Environment:
+        - Name: HAB_WORKFLOW_SERVER
+          Value: !Sub |
+            sql_user = "${DBUser}"
+            sql_password = "${DBPassword}"
+
+            [postgresql]
+            vip = "${DBPostgres.Endpoint.Address}"
+            port = 5432
         Links:
-        - postgresql
         - rabbitmq
         - elasticsearch
         Command:
         - --peer
-        - postgresql
-        - --bind
-        - database:postgresql.default
+        - rabbitmq
         - --bind
         - elasticsearch:elasticsearch.default
         - --bind
@@ -345,19 +342,31 @@ Resources:
         Essential: 'true'
         Image: chefdemo/notifications:stable
         Memory: 768
+        Environment:
+        - Name: HAB_NOTIFICATIONS
+          Value: !Sub |
+            sql_user = "${DBUser}"
+            sql_password = "${DBPassword}"
+
+            [postgresql]
+            vip = "${DBPostgres.Endpoint.Address}"
+            port = 5432
+
+            [database]
+            vip = "${DBPostgres.Endpoint.Address}"
+            port = 5432
         Links:
-        - postgresql
         - rabbitmq
         - elasticsearch
         Command:
         - --peer
-        - postgresql
-        - --bind
-        - database:postgresql.default
+        - rabbitmq
         - --bind
         - elasticsearch:elasticsearch.default
         - --bind
         - rabbitmq:rabbitmq.default
+        - --bind
+        - database:rabbitmq.default
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -371,10 +380,10 @@ Resources:
         Image: chefdemo/compliance:stable
         Memory: 768
         Links:
-        - postgresql
+        - rabbitmq
         Command:
         - --peer
-        - postgresql
+        - rabbitmq
         - --bind
         - elasticsearch:elasticsearch.default
         LogConfiguration:
@@ -393,13 +402,12 @@ Resources:
         - ContainerPort: 80
         - ContainerPort: 443
         Links:
-        - postgresql
         - rabbitmq
         - elasticsearch
         - compliance
         Command:
         - --peer
-        - postgresql
+        - rabbitmq
         - --bind
         - elasticsearch:elasticsearch.default
         - --bind
@@ -418,8 +426,9 @@ Resources:
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
       Volumes:
-      - Name: postgresql-data
       - Name: maintenance
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/maintenance
 
   ECSALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -471,200 +480,6 @@ Resources:
       UnhealthyThresholdCount: 2
       VpcId: !Ref VPC
 
-#
-# ################################################################################
-# #  PostgreSQL service
-# ################################################################################
-#   PostgresService:
-#     Type: AWS::ECS::Service
-#     # DependsOn: ALBListener
-#     Properties:
-#       Cluster: !Ref ECSCluster
-#       DesiredCount: 1
-#       # LoadBalancers:
-#       # - ContainerName: simple-app
-#       #   ContainerPort: '80'
-#       #   TargetGroupArn: !Ref 'ECSTG'
-#       # Role: !Ref 'ECSServiceRole'
-#       TaskDefinition: !Ref postgresql
-#
-#   postgresql:
-#     Type: AWS::ECS::TaskDefinition
-#     Properties:
-#       Family: !Sub ${AWS::StackName}-postgresql
-#       # NetworkMode: host
-#       ContainerDefinitions:
-#       - Name: postgresql-data
-#         Cpu: '10'
-#         Essential: 'false'
-#         Image: chefdemo/postgresql-data:stable
-#         Memory: 300
-#         LogConfiguration:
-#           LogDriver: awslogs
-#           Options:
-#             awslogs-group: !Ref 'CloudwatchLogsGroup'
-#             awslogs-region: !Ref 'AWS::Region'
-#             awslogs-stream-prefix: !Sub ${AWS::StackName}
-#         MountPoints:
-#         - ContainerPath: /hab/svc/postgresql/data
-#           SourceVolume: postgresql-data
-#       - Name: postgresql
-#         Hostname: postgresql
-#         Cpu: 10
-#         Essential: 'true'
-#         Image: chefdemo/postgresql:stable
-#         Memory: 300
-#         Environment:
-#         - Name: HAB_POSTGRESQL
-#           Value: |
-#             [superuser]
-#             name = 'hab'
-#             password = 'chefrocks'
-#         LogConfiguration:
-#           LogDriver: awslogs
-#           Options:
-#             awslogs-group: !Ref 'CloudwatchLogsGroup'
-#             awslogs-region: !Ref 'AWS::Region'
-#             awslogs-stream-prefix: !Sub ${AWS::StackName}
-#         MountPoints:
-#         - ContainerPath: /hab/svc/postgresql/data
-#           SourceVolume: postgresql-data
-#         PortMappings:
-#         - ContainerPort: 5432
-#         VolumesFrom:
-#         - SourceContainer: postgresql-data
-#           ReadOnly: false
-#       Volumes:
-#       - Name: postgresql-data
-#
-# ################################################################################
-# #  RabbitMQ service
-# ################################################################################
-#   RabbitmqService:
-#     Type: AWS::ECS::Service
-#     DependsOn: PostgresService
-#     Properties:
-#       Cluster: !Ref ECSCluster
-#       DesiredCount: 1
-#       TaskDefinition: !Ref RabbitmqTask
-#
-#   RabbitmqTask:
-#     Type: AWS::ECS::TaskDefinition
-#     Properties:
-#       Family: !Sub ${AWS::StackName}-rabbitmq
-#       # NetworkMode: host
-#       ContainerDefinitions:
-#       - Name: rabbitmq
-#         Hostname: rabbitmq
-#         Cpu: 10
-#         Essential: 'true'
-#         Image: chefdemo/rabbitmq:stable
-#         Memory: 512
-#         Links:
-#         - postgresql
-#         Command:
-#         - --peer
-#         - postgresql
-#         Environment:
-#         - Name: HAB_RABBITMQ
-#           Value: |
-#             [rabbitmq]
-#             default_vhost = '/insights'
-#             default_user = 'insights'
-#             default_pass = 'chefrocks'
-#             [rabbitmq.management]
-#             enabled = true
-#         LogConfiguration:
-#           LogDriver: awslogs
-#           Options:
-#             awslogs-group: !Ref 'CloudwatchLogsGroup'
-#             awslogs-region: !Ref 'AWS::Region'
-#             awslogs-stream-prefix: !Sub ${AWS::StackName}
-#         PortMappings:
-#         - ContainerPort: 5672
-#
-# ################################################################################
-# #  Elasticsearch service
-# ################################################################################
-#   ElasticsearchService:
-#     Type: AWS::ECS::Service
-#     DependsOn: PostgresService
-#     Properties:
-#       Cluster: !Ref 'ECSCluster'
-#       DesiredCount: '1'
-#       TaskDefinition: !Ref ElasticsearchTask
-#
-#   ElasticsearchTask:
-#     Type: AWS::ECS::TaskDefinition
-#     Properties:
-#       Family: !Sub ${AWS::StackName}-elasticsearch
-#       # NetworkMode: host
-#       ContainerDefinitions:
-#       - Name: elasticsearch
-#         Hostname: elasticsearch
-#         Cpu: 10
-#         Essential: 'true'
-#         Image: chefdemo/elasticsearch:stable
-#         Memory: 2048
-#         Links:
-#         - postgresql
-#         Command:
-#         - --peer
-#         - postgresql
-#         Ulimits:
-#         - Name: nofile
-#           HardLimit: 262144
-#           SoftLimit: 262144
-#         LogConfiguration:
-#           LogDriver: awslogs
-#           Options:
-#             awslogs-group: !Ref 'CloudwatchLogsGroup'
-#             awslogs-region: !Ref 'AWS::Region'
-#             awslogs-stream-prefix: !Sub ${AWS::StackName}
-#         PortMappings:
-#         - ContainerPort: 9200
-#
-# ################################################################################
-# #  Logstash service
-# ################################################################################
-#   LogstashService:
-#     Type: AWS::ECS::Service
-#     DependsOn: RabbitmqService
-#     Properties:
-#       Cluster: !Ref 'ECSCluster'
-#       DesiredCount: '1'
-#       TaskDefinition: !Ref LogstashTask
-#
-#   LogstashTask:
-#     Type: AWS::ECS::TaskDefinition
-#     Properties:
-#       Family: !Sub ${AWS::StackName}-logstash
-#       # NetworkMode: host
-#       ContainerDefinitions:
-#       - Name: logstash
-#         Cpu: 10
-#         Essential: 'true'
-#         Image: chefdemo/logstash:stable
-#         Memory: 2048
-#         Links:
-#         - rabbitmq
-#         - elasticsearch
-#         Command:
-#         - --peer
-#         - rabbitmq
-#         - --bind
-#         - elasticsearch:elasticsearch.default
-#         - --bind
-#         - rabbitmq:rabbitmq.default
-#         LogConfiguration:
-#           LogDriver: awslogs
-#           Options:
-#             awslogs-group: !Ref 'CloudwatchLogsGroup'
-#             awslogs-region: !Ref 'AWS::Region'
-#             awslogs-stream-prefix: !Sub ${AWS::StackName}
-
-################################################################################
-
   ECSServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -684,69 +499,138 @@ Resources:
               'elasticloadbalancing:Describe*', 'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
               'elasticloadbalancing:RegisterTargets', 'ec2:Describe*', 'ec2:AuthorizeSecurityGroupIngress']
             Resource: '*'
-  # ECSALB:
-  #   Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-  #   Properties:
-  #     Name: ECSALB
-  #     Scheme: internet-facing
-  #     LoadBalancerAttributes:
-  #     - Key: idle_timeout.timeout_seconds
-  #       Value: '30'
-  #     Subnets: !Ref SubnetIds
-  #     SecurityGroups: [!Ref 'EcsSecurityGroup']
-  #
-  # ALBListener:
-  #   Type: AWS::ElasticLoadBalancingV2::Listener
-  #   DependsOn: ECSServiceRole
-  #   Properties:
-  #     DefaultActions:
-  #     - Type: forward
-  #       TargetGroupArn: !Ref 'ECSTG'
-  #     LoadBalancerArn: !Ref 'ECSALB'
-  #     Port: '80'
-  #     Protocol: HTTP
-  #
-  # ECSALBListenerRule:
-  #   Type: AWS::ElasticLoadBalancingV2::ListenerRule
-  #   DependsOn: ALBListener
-  #   Properties:
-  #     Actions:
-  #     - Type: forward
-  #       TargetGroupArn: !Ref 'ECSTG'
-  #     Conditions:
-  #     - Field: path-pattern
-  #       Values: [/]
-  #     ListenerArn: !Ref 'ALBListener'
-  #     Priority: 1
-  #
-  # ECSTG:
-  #   Type: AWS::ElasticLoadBalancingV2::TargetGroup
-  #   DependsOn: ECSALB
-  #   Properties:
-  #     HealthCheckIntervalSeconds: 10
-  #     HealthCheckPath: /
-  #     HealthCheckProtocol: HTTP
-  #     HealthCheckTimeoutSeconds: 5
-  #     HealthyThresholdCount: 2
-  #     Name: ECSTG
-  #     Port: 80
-  #     Protocol: HTTP
-  #     UnhealthyThresholdCount: 2
-  #     VpcId: !Ref VPC
 
-  # service:
-  #   Type: AWS::ECS::Service
-  #   DependsOn: ALBListener
-  #   Properties:
-  #     Cluster: !Ref 'ECSCluster'
-  #     DesiredCount: '1'
-  #     LoadBalancers:
-  #     - ContainerName: simple-app
-  #       ContainerPort: '80'
-  #       TargetGroupArn: !Ref 'ECSTG'
-  #     Role: !Ref 'ECSServiceRole'
-  #     TaskDefinition: !Ref 'taskdefinition'
+################################################################################
+#  PostgreSQL service
+################################################################################
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Automate Access"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref EcsSecurityGroup
 
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: RDS DB subnet group
+      SubnetIds: !Ref SubnetIds
+
+  DBPostgres:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: "Snapshot"
+    Properties:
+      DBName: automate
+      AllocatedStorage: 50
+      # Iops: !Ref DBIops
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      DBInstanceClass: db.m4.large
+      StorageType: gp2
+      MultiAZ: false
+      Engine: postgres
+      EngineVersion: 9.6.3
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 35
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-pgdb
+        - Key: X-Dept
+          Value: !Ref ContactDept
+        - Key: X-Contact
+          Value: !Ref ContactEmail
+
+################################################################################
+#  Elasticsearch service
+################################################################################
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: 5.3
+      ElasticsearchClusterConfig:
+        InstanceCount: !Ref ElasticSearchShardCount
+        ZoneAwarenessEnabled: false
+        InstanceType: !Ref ElasticSearchInstanceType
+        DedicatedMasterEnabled: false
+        # DedicatedMasterType: t2.medium.elasticsearch
+        # DedicatedMasterCount: "3"
+      # EBSOptions:
+      #   EBSEnabled: true
+      #   Iops: !Ref DBIops
+      #   VolumeSize: !Ref DBAllocatedStorage
+      #   VolumeType: io1
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: "0"
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS: !If [CreateAutomateIamRole, !GetAtt ChefRole.Arn, !Sub "arn:aws:iam::${AWS::AccountId}:role/${AutomateIamRole}"]
+              AWS: !GetAtt ECSServiceRole.Arn
+            Action: "es:*"
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: "true"
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ES
+      - Key: X-Dept
+        Value: !Ref ContactDept
+      - Key: X-Contact
+        Value: !Ref ContactEmail
+
+################################################################################
+#  EFS (NFS) for mountpoint persistence
+################################################################################
+  ECSFileSystem:
+    Type: 'AWS::EFS::FileSystem'
+
+  # TODO: Revisit this in the future as it expects 3 subnets to be provided
+  ECSFileSystemMountA:
+    Type: "AWS::EFS::MountTarget"
+    Properties:
+      FileSystemId: !Ref ECSFileSystem
+      SubnetId: !Select [ 0, !Ref SubnetIds ]
+      SecurityGroups:
+        - Ref: ECSFileSystemSecurityGroup
+
+  ECSFileSystemMountB:
+    Type: "AWS::EFS::MountTarget"
+    Properties:
+      FileSystemId: !Ref ECSFileSystem
+      SubnetId: !Select [ 1, !Ref SubnetIds ]
+      SecurityGroups:
+        - Ref: ECSFileSystemSecurityGroup
+
+  ECSFileSystemMountC:
+    Type: "AWS::EFS::MountTarget"
+    Properties:
+      FileSystemId: !Ref ECSFileSystem
+      SubnetId: !Select [ 2, !Ref SubnetIds ]
+      SecurityGroups:
+        - Ref: ECSFileSystemSecurityGroup
+
+  ECSFileSystemSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Inbound NFS to the EFS mount targets
+      SecurityGroupIngress:
+      - FromPort: 2049
+        ToPort: 2049
+        IpProtocol: tcp
+        SourceSecurityGroupId: !Ref EcsSecurityGroup
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ECS-SG
+      VpcId: !Ref VPC
 
 
   # ServiceScalingTarget:
