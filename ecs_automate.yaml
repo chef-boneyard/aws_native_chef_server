@@ -56,6 +56,11 @@ Parameters:
     Description: Enter DB User Name
     Default: delivery
     Type: String
+  SSLCertificateARN:
+    Default: 'arn:aws:iam::'
+    Description: SSL Certficate ARN for SSL Certficate
+    Type: String
+
 
 Mappings:
   AWSRegionToAMI:
@@ -144,7 +149,7 @@ Resources:
           Action: ['sts:AssumeRole']
       Path: /
       Policies:
-      - PolicyName: ecs-service
+      - PolicyName: !Sub ${AWS::StackName}-ecs-service
         PolicyDocument:
           Statement:
           # default actions as needed for ECS cluster operations
@@ -171,7 +176,7 @@ Resources:
           Action: ['sts:AssumeRole']
       Path: /
       Policies:
-      - PolicyName: service-autoscaling
+      - PolicyName: !Sub ${AWS::StackName}-service-autoscaling
         PolicyDocument:
           Statement:
           - Effect: Allow
@@ -192,6 +197,15 @@ Resources:
       IpProtocol: tcp
       FromPort: '80'
       ToPort: '80'
+      CidrIp: 0.0.0.0/0
+
+  EcsSecurityGroupHTTPSinbound:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'EcsSecurityGroup'
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
       CidrIp: 0.0.0.0/0
 
   EcsSecurityGroupSSHinbound:
@@ -223,7 +237,7 @@ Resources:
 ################################################################################
   AutomateService:
     Type: AWS::ECS::Service
-    DependsOn: ALBListener
+    DependsOn: ECShttpslistener
     Properties:
       Cluster: !Ref ECSCluster
       DesiredCount: 1
@@ -243,7 +257,7 @@ Resources:
         Hostname: rabbitmq
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/rabbitmq:stable
+        Image: chefdemo/rabbitmq:current
         Memory: 512
         Environment:
         - Name: HAB_RABBITMQ
@@ -260,21 +274,24 @@ Resources:
             awslogs-group: !Ref 'CloudwatchLogsGroup'
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
-      - Name: elasticsearch
-        Hostname: elasticsearch
+      - Name: aws-signing-proxy
+        Hostname: aws-signing-proxy
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/elasticsearch:stable
-        Memory: 2048
+        Image: irvingpop/aws-signing-proxy:latest
+        Memory: 100
         Links:
         - rabbitmq
         Command:
         - --peer
         - rabbitmq
-        Ulimits:
-        - Name: nofile
-          HardLimit: 262144
-          SoftLimit: 262144
+        Environment:
+        - Name: HAB_AWS_SIGNING_PROXY
+          Value: !Sub |
+            listen_address = "0.0.0.0"
+            port = 9200
+            target = "https://${ElasticsearchDomain.DomainEndpoint}"
+            region = "${AWS::Region}"
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -284,18 +301,18 @@ Resources:
       - Name: logstash
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/logstash:stable
+        Image: chefdemo/logstash:current
         Memory: 2048
         Links:
         - rabbitmq
-        - elasticsearch
+        - aws-signing-proxy
         Command:
         - --peer
         - rabbitmq
         - --bind
-        - elasticsearch:elasticsearch.default
-        - --bind
         - rabbitmq:rabbitmq.default
+        - --bind
+        - elasticsearch:aws-signing-proxy.default
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -306,7 +323,7 @@ Resources:
         Hostname: workflow
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/workflow-server:stable
+        Image: chefdemo/workflow-server:current
         Memory: 768
         Environment:
         - Name: HAB_WORKFLOW_SERVER
@@ -319,17 +336,19 @@ Resources:
             port = 5432
         Links:
         - rabbitmq
-        - elasticsearch
+        - aws-signing-proxy
         Command:
         - --peer
         - rabbitmq
         - --bind
-        - elasticsearch:elasticsearch.default
-        - --bind
         - rabbitmq:rabbitmq.default
+        - --bind
+        - elasticsearch:aws-signing-proxy.default
         MountPoints:
         - ContainerPath: /var/opt/delivery/delivery/etc
           SourceVolume: maintenance
+        - ContainerPath: /hab/svc/workflow-server/data
+          SourceVolume: workflow-data
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -340,33 +359,18 @@ Resources:
         Hostname: notifications
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/notifications:stable
+        Image: irvingpop/notifications:latest
         Memory: 768
-        Environment:
-        - Name: HAB_NOTIFICATIONS
-          Value: !Sub |
-            sql_user = "${DBUser}"
-            sql_password = "${DBPassword}"
-
-            [postgresql]
-            vip = "${DBPostgres.Endpoint.Address}"
-            port = 5432
-
-            [database]
-            vip = "${DBPostgres.Endpoint.Address}"
-            port = 5432
         Links:
         - rabbitmq
-        - elasticsearch
+        - aws-signing-proxy
         Command:
         - --peer
         - rabbitmq
         - --bind
-        - elasticsearch:elasticsearch.default
-        - --bind
         - rabbitmq:rabbitmq.default
         - --bind
-        - database:rabbitmq.default
+        - elasticsearch:aws-signing-proxy.default
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -377,15 +381,16 @@ Resources:
         Hostname: compliance
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/compliance:stable
+        Image: chefdemo/compliance:current
         Memory: 768
         Links:
         - rabbitmq
+        - aws-signing-proxy
         Command:
         - --peer
         - rabbitmq
         - --bind
-        - elasticsearch:elasticsearch.default
+        - elasticsearch:aws-signing-proxy.default
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -396,26 +401,27 @@ Resources:
         Hostname: automate-nginx
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/automate-nginx:stable
+        Image: chefdemo/automate-nginx:current
         Memory: 300
         PortMappings:
         - ContainerPort: 80
         - ContainerPort: 443
         Links:
         - rabbitmq
-        - elasticsearch
         - compliance
+        - notifications
+        - aws-signing-proxy
         Command:
         - --peer
         - rabbitmq
-        - --bind
-        - elasticsearch:elasticsearch.default
         - --bind
         - workflow:workflow-server.default
         - --bind
         - compliance:compliance.default
         - --bind
         - notifications:notifications.default
+        - --bind
+        - elasticsearch:aws-signing-proxy.default
         MountPoints:
         - ContainerPath: /var/opt/delivery/delivery/etc
           SourceVolume: maintenance
@@ -426,6 +432,9 @@ Resources:
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
       Volumes:
+      - Name: workflow-data
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/workflow-data
       - Name: maintenance
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/maintenance
@@ -433,37 +442,37 @@ Resources:
   ECSALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: ECSALB
+      Name: !Sub ${AWS::StackName}-lb
       Scheme: internet-facing
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: '30'
       Subnets: !Ref SubnetIds
-      SecurityGroups: [!Ref 'EcsSecurityGroup']
+      SecurityGroups: [!Ref EcsSecurityGroup]
 
-  ALBListener:
+  ECShttplistener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     DependsOn: ECSServiceRole
     Properties:
       DefaultActions:
       - Type: forward
-        TargetGroupArn: !Ref 'ECSTG'
-      LoadBalancerArn: !Ref 'ECSALB'
-      Port: '80'
+        TargetGroupArn: !Ref ECSTG
+      LoadBalancerArn: !Ref ECSALB
+      Port: 80
       Protocol: HTTP
 
-  ECSALBListenerRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: ALBListener
+  ECShttpslistener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: ECSServiceRole
     Properties:
-      Actions:
-      - Type: forward
-        TargetGroupArn: !Ref 'ECSTG'
-      Conditions:
-      - Field: path-pattern
-        Values: [/]
-      ListenerArn: !Ref 'ALBListener'
-      Priority: 1
+        Certificates:
+          - CertificateArn: !Ref SSLCertificateARN
+        LoadBalancerArn: !Ref ECSALB
+        Port: 443
+        Protocol: HTTPS
+        DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ECSTG
 
   ECSTG:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -474,7 +483,7 @@ Resources:
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
-      Name: ECSTG
+      Name: !Sub ${AWS::StackName}-ECSTG
       Port: 80
       Protocol: HTTP
       UnhealthyThresholdCount: 2
@@ -491,7 +500,7 @@ Resources:
           Action: ['sts:AssumeRole']
       Path: /
       Policies:
-      - PolicyName: ecs-service
+      - PolicyName: !Sub ${AWS::StackName}-ecs-service
         PolicyDocument:
           Statement:
           - Effect: Allow
@@ -574,8 +583,7 @@ Resources:
         Statement:
           - Effect: "Allow"
             Principal:
-              AWS: !If [CreateAutomateIamRole, !GetAtt ChefRole.Arn, !Sub "arn:aws:iam::${AWS::AccountId}:role/${AutomateIamRole}"]
-              AWS: !GetAtt ECSServiceRole.Arn
+              AWS: !GetAtt EC2Role.Arn
             Action: "es:*"
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
@@ -674,14 +682,13 @@ Resources:
   #     ComparisonOperator: GreaterThanThreshold
   #     MetricName: HTTPCode_ELB_5XX_Count
 
-
 # Outputs:
-  # ecsservice:
-  #   Value: !Ref 'service'
-  # ecscluster:
-  #   Value: !Ref 'ECSCluster'
-  # ECSALB:
-  #   Description: Your ALB DNS URL
-  #   Value: !Join ['', [!GetAtt [ECSALB, DNSName]]]
-  # taskdef:
-  #   Value: !Ref 'taskdefinition'
+#   ecsservice:
+#     Value: !Ref AutomateService
+#   ecscluster:
+#     Value: !Ref ECSCluster
+#   ECSALB:
+#     Description: Your ALB DNS URL
+#     Value: !Join ['', [!GetAtt [ECSALB, DNSName]]]
+#   taskdef:
+#     Value: !Ref 'taskdefinition'
