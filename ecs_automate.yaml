@@ -250,6 +250,9 @@ Resources:
 
   AutomateTask:
     Type: AWS::ECS::TaskDefinition
+    DependsOn:
+    - DBPostgres
+    - ElasticsearchDomain
     Properties:
       Family: !Sub ${AWS::StackName}-automate
       ContainerDefinitions:
@@ -371,6 +374,9 @@ Resources:
         - rabbitmq:rabbitmq.default
         - --bind
         - elasticsearch:aws-signing-proxy.default
+        MountPoints:
+        - ContainerPath: /hab/svc/notifications/data
+          SourceVolume: notifications-data
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -391,6 +397,9 @@ Resources:
         - rabbitmq
         - --bind
         - elasticsearch:aws-signing-proxy.default
+        MountPoints:
+        - ContainerPath: /hab/svc/compliance/data
+          SourceVolume: compliance-data
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -425,6 +434,8 @@ Resources:
         MountPoints:
         - ContainerPath: /var/opt/delivery/delivery/etc
           SourceVolume: maintenance
+        - ContainerPath: /hab/svc/automate-nginx/data
+          SourceVolume: nginx-data
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -435,6 +446,15 @@ Resources:
       - Name: workflow-data
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/workflow-data
+      - Name: nginx-data
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/nginx-data
+      - Name: compliance-data
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/compliance-data
+      - Name: notifications-data
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/notifications-data
       - Name: maintenance
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/maintenance
@@ -540,7 +560,7 @@ Resources:
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: db.m4.large
       StorageType: gp2
-      MultiAZ: false
+      MultiAZ: true
       Engine: postgres
       EngineVersion: 9.6.3
       AutoMinorVersionUpgrade: true
