@@ -1,0 +1,30 @@
+[
+  {
+    "ParameterKey":   "KeyName",
+    "ParameterValue": "irving"
+  },
+  {
+    "ParameterKey":   "VPC",
+    "ParameterValue": "vpc-41d45124"
+  },
+  {
+    "ParameterKey":   "SubnetIds",
+    "ParameterValue": "subnet-7424b611,subnet-7fd06308,subnet-4dc71114"
+  },
+  {
+    "ParameterKey":   "DBPassword",
+    "ParameterValue": "SuperSecurePassword"
+  },
+  {
+    "ParameterKey":   "SSLCertificateARN",
+    "ParameterValue": "arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f"
+  },
+  {
+    "ParameterKey":   "ContactEmail",
+    "ParameterValue": "irving@chef.io"
+  },
+  {
+    "ParameterKey":   "ContactDept",
+    "ParameterValue": "success"
+  }
+]
