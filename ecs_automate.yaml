@@ -8,14 +8,14 @@ Parameters:
     Description: Select a VPC that allows instances access to the Internet.
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
-    Description: Provide exactly THREE (3) subnets in your selected VPC.
+    Description: Provide exactly THREE (3) subnets in your selected VPC
   DesiredCapacity:
     Type: Number
-    Default: '1'
+    Default: 2
     Description: Number of instances to launch in your ECS cluster.
   MaxSize:
     Type: Number
-    Default: '3'
+    Default: 3
     Description: Maximum number of instances that can be launched in your ECS cluster.
   InstanceType:
     Description: EC2 instance type
@@ -61,7 +61,6 @@ Parameters:
     Description: SSL Certficate ARN for SSL Certficate
     Type: String
 
-
 Mappings:
   AWSRegionToAMI:
     us-east-1:
@@ -103,6 +102,7 @@ Resources:
       AutoScalingReplacingUpdate:
         WillReplace: 'true'
 
+  # Launch configuration to start ECS container instances running habitat
   ContainerInstances:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -121,22 +121,63 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
-          # configure NFS client
-          EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
-          EC2_REGION=${AWS::Region}
-          EFS_FILE_SYSTEM_ID=${ECSFileSystem}
-          NFS_SRC=$EC2_AVAIL_ZONE.$EFS_FILE_SYSTEM_ID.efs.$EC2_REGION.amazonaws.com
-          yum install -y nfs-utils aws-cfn-bootstrap
+          function error_exit {
+            aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource ContainerInstances --region ${AWS::Region}
+            exit 1
+          }
 
-          echo "$NFS_SRC:/ /mnt/efs nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
-          mkdir -p /mnt/efs
-          mount -a
-          mkdir -p /mnt/efs/${AWS::StackName}
-
-          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-          # up the vm.max_map_count for elasticsearch
-          sysctl -w vm.max_map_count=262144
+          yum install -y aws-cli aws-cfn-bootstrap || error_exit
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ContainerInstances --region ${AWS::Region} || error_exit
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              nfs-utils: []
+          files:
+            /usr/local/bin/start-hab-peering.sh:
+              mode: '000755'
+              content: !Sub |
+                export AWS_DEFAULT_REGION=${AWS::Region}
+                current_instance_id=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                current_autoscaling_group=$(aws autoscaling describe-auto-scaling-instances --query "AutoScalingInstances[?InstanceId==\`$current_instance_id\`].AutoScalingGroupName"  --output text)
+                peer_instances=$(aws autoscaling describe-auto-scaling-instances --query "AutoScalingInstances[? AutoScalingGroupName==\`$current_autoscaling_group\` && InstanceId!=\`$current_instance_id\`].InstanceId" --output text | awk '{print $1}')
+
+                if [ -z "$peer_instances" ]; then
+                # no peers found
+                  /bin/hab sup run
+                else
+                  peer_ip=$(aws ec2 describe-instances --instance-ids $peer_instances --query 'Reservations[].Instances[].NetworkInterfaces[].PrivateIpAddress' --output text)
+                  /bin/hab sup run --peer $peer_ip
+                fi
+            /etc/init/habitat.conf:
+              content: !Sub |
+                start on runlevel [2345]
+                stop on shutdown
+                respawn
+                exec /usr/local/bin/start-hab-peering.sh >> /var/log/habitat.log 2>&1
+          commands:
+            01_install_and_start_habitat:
+              command: |
+                curl https://raw.githubusercontent.com/habitat-sh/habitat/master/components/hab/install.sh | sudo bash
+                sleep 30
+                initctl start habitat
+            02_configure_nfs:
+              command: !Sub |
+                EC2_AVAIL_ZONE=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+                EC2_REGION=${AWS::Region}
+                EFS_FILE_SYSTEM_ID=${ECSFileSystem}
+                NFS_SRC=$EC2_AVAIL_ZONE.$EFS_FILE_SYSTEM_ID.efs.$EC2_REGION.amazonaws.com
+
+                echo "$NFS_SRC:/ /mnt/efs nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+                mkdir -p /mnt/efs
+                mount -a
+                mkdir -p /mnt/efs/${AWS::StackName}
+            03_configure_ecs:
+              command: !Sub |
+                echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
 
   EC2Role:
     Type: AWS::IAM::Role
@@ -157,6 +198,11 @@ Resources:
             Action: ['ecs:CreateCluster', 'ecs:DeregisterContainerInstance', 'ecs:DiscoverPollEndpoint',
               'ecs:Poll', 'ecs:RegisterContainerInstance', 'ecs:StartTelemetrySession',
               'ecs:Submit*', 'logs:CreateLogStream', 'logs:PutLogEvents']
+            Resource: '*'
+          # Weave Net permissions
+          - Effect: Allow
+            Action: ['ec2:DescribeInstances', 'ec2:DescribeTags', 'autoscaling:DescribeAutoScalingInstances',
+              'ecs:ListServices', 'ecs:DescribeTasks', 'ecs:DescribeServices']
             Resource: '*'
 
   EC2InstanceProfile:
@@ -217,13 +263,11 @@ Resources:
       ToPort: '22'
       CidrIp: 0.0.0.0/0
 
-  EcsSecurityGroupALBports:
+  EcsSecurityGroupALLports:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       GroupId: !Ref 'EcsSecurityGroup'
-      IpProtocol: tcp
-      FromPort: '31000'
-      ToPort: '61000'
+      IpProtocol: -1
       SourceSecurityGroupId: !Ref 'EcsSecurityGroup'
 
   CloudwatchLogsGroup:
@@ -262,6 +306,9 @@ Resources:
         Essential: 'true'
         Image: chefdemo/rabbitmq:current
         Memory: 512
+        Command:
+        - --peer
+        - 172.17.0.1
         Environment:
         - Name: HAB_RABBITMQ
           Value: |
@@ -283,11 +330,9 @@ Resources:
         Essential: 'true'
         Image: irvingpop/aws-signing-proxy:latest
         Memory: 100
-        Links:
-        - rabbitmq
         Command:
         - --peer
-        - rabbitmq
+        - 172.17.0.1
         Environment:
         - Name: HAB_AWS_SIGNING_PROXY
           Value: !Sub |
@@ -311,7 +356,7 @@ Resources:
         - aws-signing-proxy
         Command:
         - --peer
-        - rabbitmq
+        - 172.17.0.1
         - --bind
         - rabbitmq:rabbitmq.default
         - --bind
@@ -342,7 +387,7 @@ Resources:
         - aws-signing-proxy
         Command:
         - --peer
-        - rabbitmq
+        - 172.17.0.1
         - --bind
         - rabbitmq:rabbitmq.default
         - --bind
@@ -362,14 +407,14 @@ Resources:
         Hostname: notifications
         Cpu: 10
         Essential: 'true'
-        Image: irvingpop/notifications:latest
+        Image: chefdemo/notifications:1.6.104
         Memory: 768
         Links:
         - rabbitmq
         - aws-signing-proxy
         Command:
         - --peer
-        - rabbitmq
+        - 172.17.0.1
         - --bind
         - rabbitmq:rabbitmq.default
         - --bind
@@ -390,11 +435,10 @@ Resources:
         Image: chefdemo/compliance:current
         Memory: 768
         Links:
-        - rabbitmq
         - aws-signing-proxy
         Command:
         - --peer
-        - rabbitmq
+        - 172.17.0.1
         - --bind
         - elasticsearch:aws-signing-proxy.default
         MountPoints:
@@ -416,13 +460,12 @@ Resources:
         - ContainerPort: 80
         - ContainerPort: 443
         Links:
-        - rabbitmq
         - compliance
         - notifications
         - aws-signing-proxy
         Command:
         - --peer
-        - rabbitmq
+        - 172.17.0.1
         - --bind
         - workflow:workflow-server.default
         - --bind
