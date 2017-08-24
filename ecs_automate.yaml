@@ -299,6 +299,7 @@ Resources:
     - ElasticsearchDomain
     Properties:
       Family: !Sub ${AWS::StackName}-automate
+      NetworkMode: host
       ContainerDefinitions:
       - Name: rabbitmq
         Hostname: rabbitmq
@@ -309,6 +310,10 @@ Resources:
         Command:
         - --peer
         - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9650
+        - --listen-http
+        - 0.0.0.0:9660
         Environment:
         - Name: HAB_RABBITMQ
           Value: |
@@ -328,11 +333,15 @@ Resources:
         Hostname: aws-signing-proxy
         Cpu: 10
         Essential: 'true'
-        Image: irvingpop/aws-signing-proxy:latest
+        Image: irvingpop/aws-signing-proxy:0.5.0-20170824221037
         Memory: 100
         Command:
         - --peer
         - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9651
+        - --listen-http
+        - 0.0.0.0:9661
         Environment:
         - Name: HAB_AWS_SIGNING_PROXY
           Value: !Sub |
@@ -351,12 +360,13 @@ Resources:
         Essential: 'true'
         Image: chefdemo/logstash:current
         Memory: 2048
-        Links:
-        - rabbitmq
-        - aws-signing-proxy
         Command:
         - --peer
         - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9652
+        - --listen-http
+        - 0.0.0.0:9662
         - --bind
         - rabbitmq:rabbitmq.default
         - --bind
@@ -382,12 +392,13 @@ Resources:
             [postgresql]
             vip = "${DBPostgres.Endpoint.Address}"
             port = 5432
-        Links:
-        - rabbitmq
-        - aws-signing-proxy
         Command:
         - --peer
         - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9653
+        - --listen-http
+        - 0.0.0.0:9663
         - --bind
         - rabbitmq:rabbitmq.default
         - --bind
@@ -409,12 +420,13 @@ Resources:
         Essential: 'true'
         Image: chefdemo/notifications:1.6.104
         Memory: 768
-        Links:
-        - rabbitmq
-        - aws-signing-proxy
         Command:
         - --peer
         - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9654
+        - --listen-http
+        - 0.0.0.0:9664
         - --bind
         - rabbitmq:rabbitmq.default
         - --bind
@@ -434,11 +446,13 @@ Resources:
         Essential: 'true'
         Image: chefdemo/compliance:current
         Memory: 768
-        Links:
-        - aws-signing-proxy
         Command:
         - --peer
         - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9655
+        - --listen-http
+        - 0.0.0.0:9665
         - --bind
         - elasticsearch:aws-signing-proxy.default
         MountPoints:
@@ -459,13 +473,13 @@ Resources:
         PortMappings:
         - ContainerPort: 80
         - ContainerPort: 443
-        Links:
-        - compliance
-        - notifications
-        - aws-signing-proxy
         Command:
         - --peer
         - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9656
+        - --listen-http
+        - 0.0.0.0:9666
         - --bind
         - workflow:workflow-server.default
         - --bind
