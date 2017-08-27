@@ -333,7 +333,7 @@ Resources:
         Hostname: aws-signing-proxy
         Cpu: 10
         Essential: 'true'
-        Image: irvingpop/aws-signing-proxy:0.5.0-20170824221037
+        Image: irvingpop/aws-signing-proxy:latest
         Memory: 100
         Command:
         - --peer
@@ -358,7 +358,7 @@ Resources:
       - Name: logstash
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/logstash:current
+        Image: irvingpop/logstash:latest
         Memory: 2048
         Command:
         - --peer
@@ -381,7 +381,7 @@ Resources:
         Hostname: workflow
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/workflow-server:current
+        Image: irvingpop/workflow-server:latest
         Memory: 768
         Environment:
         - Name: HAB_WORKFLOW_SERVER
@@ -418,7 +418,7 @@ Resources:
         Hostname: notifications
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/notifications:1.6.104
+        Image: irvingpop/notifications:latest
         Memory: 768
         Command:
         - --peer
@@ -444,7 +444,7 @@ Resources:
         Hostname: compliance
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/compliance:current
+        Image: irvingpop/compliance:latest
         Memory: 768
         Command:
         - --peer
@@ -468,7 +468,7 @@ Resources:
         Hostname: automate-nginx
         Cpu: 10
         Essential: 'true'
-        Image: chefdemo/automate-nginx:current
+        Image: irvingpop/automate-nginx:latest
         Memory: 300
         PortMappings:
         - ContainerPort: 80
