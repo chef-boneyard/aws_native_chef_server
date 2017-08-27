@@ -279,197 +279,36 @@ Resources:
 ################################################################################
 #  Combo Service - runs all of the containers in a single task definition (1 host), so linking can work
 ################################################################################
-  AutomateService:
+  NginxService:
     Type: AWS::ECS::Service
     DependsOn: ECShttpslistener
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: 2
       LoadBalancers:
       - ContainerName: automate-nginx
         ContainerPort: 80
         TargetGroupArn: !Ref ECSTG
       Role: !Ref ECSServiceRole
-      TaskDefinition: !Ref AutomateTask
+      TaskDefinition: !Ref NginxTask
 
-  AutomateTask:
+  NginxTask:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
-    - DBPostgres
-    - ElasticsearchDomain
+    - WorkflowService
+    - ComplianceService
+    - NotificationsService
+    - ElasticsearchService
     Properties:
-      Family: !Sub ${AWS::StackName}-automate
+      Family: !Sub ${AWS::StackName}-nginx
       NetworkMode: host
       ContainerDefinitions:
-      - Name: rabbitmq
-        Hostname: rabbitmq
-        Cpu: 10
-        Essential: 'true'
-        Image: chefdemo/rabbitmq:current
-        Memory: 512
-        Command:
-        - --peer
-        - 172.17.0.1
-        - --listen-gossip
-        - 0.0.0.0:9650
-        - --listen-http
-        - 0.0.0.0:9660
-        Environment:
-        - Name: HAB_RABBITMQ
-          Value: |
-            [rabbitmq]
-            default_vhost = '/insights'
-            default_user = 'insights'
-            default_pass = 'chefrocks'
-            [rabbitmq.management]
-            enabled = true
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref 'CloudwatchLogsGroup'
-            awslogs-region: !Ref 'AWS::Region'
-            awslogs-stream-prefix: !Sub ${AWS::StackName}
-      - Name: aws-signing-proxy
-        Hostname: aws-signing-proxy
-        Cpu: 10
-        Essential: 'true'
-        Image: irvingpop/aws-signing-proxy:latest
-        Memory: 100
-        Command:
-        - --peer
-        - 172.17.0.1
-        - --listen-gossip
-        - 0.0.0.0:9651
-        - --listen-http
-        - 0.0.0.0:9661
-        Environment:
-        - Name: HAB_AWS_SIGNING_PROXY
-          Value: !Sub |
-            listen_address = "0.0.0.0"
-            port = 9200
-            target = "https://${ElasticsearchDomain.DomainEndpoint}"
-            region = "${AWS::Region}"
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref 'CloudwatchLogsGroup'
-            awslogs-region: !Ref 'AWS::Region'
-            awslogs-stream-prefix: !Sub ${AWS::StackName}
-      - Name: logstash
-        Cpu: 10
-        Essential: 'true'
-        Image: irvingpop/logstash:latest
-        Memory: 2048
-        Command:
-        - --peer
-        - 172.17.0.1
-        - --listen-gossip
-        - 0.0.0.0:9652
-        - --listen-http
-        - 0.0.0.0:9662
-        - --bind
-        - rabbitmq:rabbitmq.default
-        - --bind
-        - elasticsearch:aws-signing-proxy.default
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref 'CloudwatchLogsGroup'
-            awslogs-region: !Ref 'AWS::Region'
-            awslogs-stream-prefix: !Sub ${AWS::StackName}
-      - Name: workflow
-        Hostname: workflow
-        Cpu: 10
-        Essential: 'true'
-        Image: irvingpop/workflow-server:latest
-        Memory: 768
-        Environment:
-        - Name: HAB_WORKFLOW_SERVER
-          Value: !Sub |
-            sql_user = "${DBUser}"
-            sql_password = "${DBPassword}"
-
-            [postgresql]
-            vip = "${DBPostgres.Endpoint.Address}"
-            port = 5432
-        Command:
-        - --peer
-        - 172.17.0.1
-        - --listen-gossip
-        - 0.0.0.0:9653
-        - --listen-http
-        - 0.0.0.0:9663
-        - --bind
-        - rabbitmq:rabbitmq.default
-        - --bind
-        - elasticsearch:aws-signing-proxy.default
-        MountPoints:
-        - ContainerPath: /var/opt/delivery/delivery/etc
-          SourceVolume: maintenance
-        - ContainerPath: /hab/svc/workflow-server/data
-          SourceVolume: workflow-data
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref 'CloudwatchLogsGroup'
-            awslogs-region: !Ref 'AWS::Region'
-            awslogs-stream-prefix: !Sub ${AWS::StackName}
-      - Name: notifications
-        Hostname: notifications
-        Cpu: 10
-        Essential: 'true'
-        Image: irvingpop/notifications:latest
-        Memory: 768
-        Command:
-        - --peer
-        - 172.17.0.1
-        - --listen-gossip
-        - 0.0.0.0:9654
-        - --listen-http
-        - 0.0.0.0:9664
-        - --bind
-        - rabbitmq:rabbitmq.default
-        - --bind
-        - elasticsearch:aws-signing-proxy.default
-        MountPoints:
-        - ContainerPath: /hab/svc/notifications/data
-          SourceVolume: notifications-data
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref 'CloudwatchLogsGroup'
-            awslogs-region: !Ref 'AWS::Region'
-            awslogs-stream-prefix: !Sub ${AWS::StackName}
-      - Name: compliance
-        Hostname: compliance
-        Cpu: 10
-        Essential: 'true'
-        Image: irvingpop/compliance:latest
-        Memory: 768
-        Command:
-        - --peer
-        - 172.17.0.1
-        - --listen-gossip
-        - 0.0.0.0:9655
-        - --listen-http
-        - 0.0.0.0:9665
-        - --bind
-        - elasticsearch:aws-signing-proxy.default
-        MountPoints:
-        - ContainerPath: /hab/svc/compliance/data
-          SourceVolume: compliance-data
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref 'CloudwatchLogsGroup'
-            awslogs-region: !Ref 'AWS::Region'
-            awslogs-stream-prefix: !Sub ${AWS::StackName}
       - Name: automate-nginx
         Hostname: automate-nginx
-        Cpu: 10
+        Cpu: 100
         Essential: 'true'
         Image: irvingpop/automate-nginx:latest
-        Memory: 300
+        Memory: 512
         PortMappings:
         - ContainerPort: 80
         - ContainerPort: 443
@@ -500,21 +339,315 @@ Resources:
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
       Volumes:
-      - Name: workflow-data
-        Host:
-          SourcePath: !Sub /mnt/efs/${AWS::StackName}/workflow-data
       - Name: nginx-data
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/nginx-data
-      - Name: compliance-data
-        Host:
-          SourcePath: !Sub /mnt/efs/${AWS::StackName}/compliance-data
-      - Name: notifications-data
-        Host:
-          SourcePath: !Sub /mnt/efs/${AWS::StackName}/notifications-data
       - Name: maintenance
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/maintenance
+
+  WorkflowService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref WorkflowTask
+
+  WorkflowTask:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+    - DBPostgres
+    - ElasticsearchService
+    - RabbitMQService
+    Properties:
+      Family: !Sub ${AWS::StackName}-workflow
+      NetworkMode: host
+      ContainerDefinitions:
+      - Name: workflow
+        Hostname: workflow
+        Cpu: 100
+        Essential: 'true'
+        Image: irvingpop/workflow-server:latest
+        Memory: 1024
+        Environment:
+        - Name: HAB_WORKFLOW_SERVER
+          Value: !Sub |
+            sql_user = "${DBUser}"
+            sql_password = "${DBPassword}"
+
+            [postgresql]
+            vip = "${DBPostgres.Endpoint.Address}"
+            port = 5432
+        Command:
+        - --peer
+        - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9653
+        - --listen-http
+        - 0.0.0.0:9663
+        - --bind
+        - rabbitmq:rabbitmq.default
+        - --bind
+        - elasticsearch:aws-signing-proxy.default
+        MountPoints:
+        - ContainerPath: /var/opt/delivery/delivery/etc
+          SourceVolume: maintenance
+        - ContainerPath: /hab/svc/workflow-server/data
+          SourceVolume: workflow-data
+        Ulimits:
+        - Name: nofile
+          HardLimit: 262144
+          SoftLimit: 262144
+        - Name: nproc
+          HardLimit: 131072
+          SoftLimit: 131072
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+      Volumes:
+      - Name: workflow-data
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/workflow-data
+      - Name: maintenance
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/maintenance
+
+  ComplianceService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref ComplianceTask
+
+  ComplianceTask:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+    - ElasticsearchService
+    Properties:
+      Family: !Sub ${AWS::StackName}-compliance
+      NetworkMode: host
+      ContainerDefinitions:
+      - Name: compliance
+        Hostname: compliance
+        Cpu: 100
+        Essential: 'true'
+        Image: irvingpop/compliance:latest
+        Memory: 768
+        Command:
+        - --peer
+        - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9655
+        - --listen-http
+        - 0.0.0.0:9665
+        - --bind
+        - elasticsearch:aws-signing-proxy.default
+        MountPoints:
+        - ContainerPath: /hab/svc/compliance/data
+          SourceVolume: compliance-data
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+      Volumes:
+      - Name: compliance-data
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/compliance-data
+
+  NotificationsService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref NotificationsTask
+
+  NotificationsTask:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+    - ElasticsearchService
+    Properties:
+      Family: !Sub ${AWS::StackName}-notifications
+      NetworkMode: host
+      ContainerDefinitions:
+      - Name: notifications
+        Hostname: notifications
+        Cpu: 100
+        Essential: 'true'
+        Image: irvingpop/notifications:latest
+        Memory: 768
+        Command:
+        - --peer
+        - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9654
+        - --listen-http
+        - 0.0.0.0:9664
+        - --bind
+        - rabbitmq:rabbitmq.default
+        - --bind
+        - elasticsearch:aws-signing-proxy.default
+        MountPoints:
+        - ContainerPath: /hab/svc/notifications/data
+          SourceVolume: notifications-data
+        Ulimits:
+        - Name: nofile
+          HardLimit: 262144
+          SoftLimit: 262144
+        - Name: nproc
+          HardLimit: 131072
+          SoftLimit: 131072
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+      Volumes:
+      - Name: notifications-data
+        Host:
+          SourcePath: !Sub /mnt/efs/${AWS::StackName}/notifications-data
+
+  LogstashService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref LogstashTask
+
+  LogstashTask:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+    - ElasticsearchService
+    - RabbitMQService
+    Properties:
+      Family: !Sub ${AWS::StackName}-logstash
+      NetworkMode: host
+      ContainerDefinitions:
+      - Name: logstash
+        Cpu: 1000
+        Essential: 'true'
+        Image: irvingpop/logstash:latest
+        Memory: 2048
+        Command:
+        - --peer
+        - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9652
+        - --listen-http
+        - 0.0.0.0:9662
+        - --bind
+        - rabbitmq:rabbitmq.default
+        - --bind
+        - elasticsearch:aws-signing-proxy.default
+        Ulimits:
+        - Name: nofile
+          HardLimit: 262144
+          SoftLimit: 262144
+        - Name: nproc
+          HardLimit: 131072
+          SoftLimit: 131072
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+
+  ElasticsearchService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref ElasticsearchTask
+
+  ElasticsearchTask:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+    - ElasticsearchDomain
+    Properties:
+      Family: !Sub ${AWS::StackName}-elasticsearch
+      NetworkMode: host
+      ContainerDefinitions:
+      - Name: aws-signing-proxy
+        Hostname: aws-signing-proxy
+        Cpu: 100
+        Essential: 'true'
+        Image: irvingpop/aws-signing-proxy:latest
+        Memory: 256
+        Command:
+        - --peer
+        - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9651
+        - --listen-http
+        - 0.0.0.0:9661
+        Environment:
+        - Name: HAB_AWS_SIGNING_PROXY
+          Value: !Sub |
+            listen_address = "0.0.0.0"
+            port = 9200
+            target = "https://${ElasticsearchDomain.DomainEndpoint}"
+            region = "${AWS::Region}"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
+
+  RabbitMQService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref RabbitMQTask
+
+  RabbitMQTask:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-rabbitmq
+      NetworkMode: host
+      ContainerDefinitions:
+      - Name: rabbitmq
+        Hostname: rabbitmq
+        Cpu: 100
+        Essential: 'true'
+        Image: chefdemo/rabbitmq:current
+        Memory: 768
+        Command:
+        - --peer
+        - 172.17.0.1
+        - --listen-gossip
+        - 0.0.0.0:9650
+        - --listen-http
+        - 0.0.0.0:9660
+        Environment:
+        - Name: HAB_RABBITMQ
+          Value: |
+            [rabbitmq]
+            default_vhost = '/insights'
+            default_user = 'insights'
+            default_pass = 'chefrocks'
+            [rabbitmq.management]
+            enabled = true
+        Ulimits:
+        - Name: nofile
+          HardLimit: 262144
+          SoftLimit: 262144
+        - Name: nproc
+          HardLimit: 131072
+          SoftLimit: 131072
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub ${AWS::StackName}
 
   ECSALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -759,13 +892,7 @@ Resources:
   #     ComparisonOperator: GreaterThanThreshold
   #     MetricName: HTTPCode_ELB_5XX_Count
 
-# Outputs:
-#   ecsservice:
-#     Value: !Ref AutomateService
-#   ecscluster:
-#     Value: !Ref ECSCluster
-#   ECSALB:
-#     Description: Your ALB DNS URL
-#     Value: !Join ['', [!GetAtt [ECSALB, DNSName]]]
-#   taskdef:
-#     Value: !Ref 'taskdefinition'
+Outputs:
+  ECSALB:
+    Description: Your ALB DNS URL
+    Value: !Sub https://${ECSALB.DNSName}
