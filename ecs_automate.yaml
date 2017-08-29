@@ -81,10 +81,10 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier: !Ref SubnetIds
-      LaunchConfigurationName: !Ref 'ContainerInstances'
-      MinSize: '1'
-      MaxSize: !Ref 'MaxSize'
-      DesiredCapacity: !Ref 'DesiredCapacity'
+      LaunchConfigurationName: !Ref ContainerInstances
+      MinSize: 1
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-dockerhost
@@ -120,7 +120,7 @@ Resources:
           DeleteOnTermination: true
       UserData:
         Fn::Base64: !Sub |
-          #!/bin/bash -xe
+          #!/bin/bash -x
           function error_exit {
             aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
             /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource ContainerInstances --region ${AWS::Region}
@@ -137,6 +137,13 @@ Resources:
             yum:
               nfs-utils: []
           files:
+            /etc/security/limits.d/ecs.conf:
+              content: |
+                #<domain>      <type>  <item>         <value>
+                *               soft    nproc         1000000
+                *               hard    nproc         1000000
+                *               soft    nofile        1000000
+                *               hard    nofile        1000000
             /usr/local/bin/start-hab-peering.sh:
               mode: '000755'
               content: !Sub |
@@ -201,7 +208,7 @@ Resources:
             Resource: '*'
           # Weave Net permissions
           - Effect: Allow
-            Action: ['ec2:DescribeInstances', 'ec2:DescribeTags', 'autoscaling:DescribeAutoScalingInstances',
+            Action: ['ec2:DescribeInstances', 'ec2:DescribeTags', 'autoscaling:*',
               'ecs:ListServices', 'ecs:DescribeTasks', 'ecs:DescribeServices']
             Resource: '*'
 
@@ -284,7 +291,7 @@ Resources:
     DependsOn: ECShttpslistener
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 2
+      DesiredCount: !Ref DesiredCapacity
       LoadBalancers:
       - ContainerName: automate-nginx
         ContainerPort: 80
@@ -350,7 +357,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredCapacity
       TaskDefinition: !Ref WorkflowTask
 
   WorkflowTask:
@@ -516,7 +523,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredCapacity
       TaskDefinition: !Ref LogstashTask
 
   LogstashTask:
@@ -562,7 +569,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredCapacity
       TaskDefinition: !Ref ElasticsearchTask
 
   ElasticsearchTask:
