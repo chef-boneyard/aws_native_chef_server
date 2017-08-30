@@ -284,18 +284,18 @@ Resources:
       RetentionInDays: 14
 
 ################################################################################
-#  Combo Service - runs all of the containers in a single task definition (1 host), so linking can work
+#  Automate Nginx Service (web frontend)
 ################################################################################
   NginxService:
     Type: AWS::ECS::Service
-    DependsOn: ECShttpslistener
+    DependsOn: Nginxhttpslistener
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: !Ref DesiredCapacity
+      DesiredCount: 1
       LoadBalancers:
       - ContainerName: automate-nginx
         ContainerPort: 80
-        TargetGroupArn: !Ref ECSTG
+        TargetGroupArn: !Ref NginxTG
       Role: !Ref ECSServiceRole
       TaskDefinition: !Ref NginxTask
 
@@ -353,12 +353,90 @@ Resources:
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/maintenance
 
+  NginxALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${AWS::StackName}-NginxALB
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets: !Ref SubnetIds
+      SecurityGroups: [!Ref EcsSecurityGroup]
+
+  Nginxhttplistener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: ECSServiceRole
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref NginxTG
+      LoadBalancerArn: !Ref NginxALB
+      Port: 80
+      Protocol: HTTP
+
+  Nginxhttpslistener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: ECSServiceRole
+    Properties:
+        Certificates:
+          - CertificateArn: !Ref SSLCertificateARN
+        LoadBalancerArn: !Ref NginxALB
+        Port: 443
+        Protocol: HTTPS
+        DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NginxTG
+
+  NginxTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: NginxALB
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /viz/
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Name: !Sub ${AWS::StackName}-NginxTG
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+
+  ECSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ecs.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: !Sub ${AWS::StackName}-ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ['elasticloadbalancing:DeregisterInstancesFromLoadBalancer', 'elasticloadbalancing:DeregisterTargets',
+              'elasticloadbalancing:Describe*', 'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
+              'elasticloadbalancing:RegisterTargets', 'ec2:Describe*', 'ec2:AuthorizeSecurityGroupIngress']
+            Resource: '*'
+
+################################################################################
+#  Workflow Service: primary Automate API, Delivery, Git, etc
+################################################################################
   WorkflowService:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: !Ref DesiredCapacity
+      DesiredCount: 1
       TaskDefinition: !Ref WorkflowTask
+      LoadBalancers:
+      - ContainerName: workflow
+        ContainerPort: 9611
+        TargetGroupArn: !Ref WorkflowTG
+      Role: !Ref ECSServiceRole
 
   WorkflowTask:
     Type: AWS::ECS::TaskDefinition
@@ -376,6 +454,8 @@ Resources:
         Essential: 'true'
         Image: irvingpop/workflow-server:latest
         Memory: 1024
+        PortMappings:
+        - ContainerPort: 9611
         Environment:
         - Name: HAB_WORKFLOW_SERVER
           Value: !Sub |
@@ -422,6 +502,46 @@ Resources:
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/maintenance
 
+  WorkflowALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${AWS::StackName}-WorkflowALB
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets: !Ref SubnetIds
+      SecurityGroups: [!Ref EcsSecurityGroup]
+
+  WorkflowHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: ECSServiceRole
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref WorkflowTG
+      LoadBalancerArn: !Ref WorkflowALB
+      Port: 9611
+      Protocol: HTTP
+
+  WorkflowTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: WorkflowALB
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /api/_status
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Name: !Sub ${AWS::StackName}-WorkflowTG
+      Port: 9611
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+
+################################################################################
+#  Compliance Service
+################################################################################
   ComplianceService:
     Type: AWS::ECS::Service
     Properties:
@@ -466,6 +586,9 @@ Resources:
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/compliance-data
 
+################################################################################
+#  Notifications Service
+################################################################################
   NotificationsService:
     Type: AWS::ECS::Service
     Properties:
@@ -519,11 +642,14 @@ Resources:
         Host:
           SourcePath: !Sub /mnt/efs/${AWS::StackName}/notifications-data
 
+################################################################################
+#  Logstash Service
+################################################################################
   LogstashService:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: !Ref DesiredCapacity
+      DesiredCount: 1
       TaskDefinition: !Ref LogstashTask
 
   LogstashTask:
@@ -565,11 +691,14 @@ Resources:
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
 
+################################################################################
+#  Elasticsearch Signing Proxy - Proxies to AWS ES
+################################################################################
   ElasticsearchService:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: !Ref DesiredCapacity
+      DesiredCount: 1
       TaskDefinition: !Ref ElasticsearchTask
 
   ElasticsearchTask:
@@ -607,6 +736,9 @@ Resources:
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
 
+################################################################################
+#  RabbitMQ service
+################################################################################
   RabbitMQService:
     Type: AWS::ECS::Service
     Properties:
@@ -656,75 +788,6 @@ Resources:
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: !Sub ${AWS::StackName}
 
-  ECSALB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Name: !Sub ${AWS::StackName}-lb
-      Scheme: internet-facing
-      LoadBalancerAttributes:
-      - Key: idle_timeout.timeout_seconds
-        Value: '30'
-      Subnets: !Ref SubnetIds
-      SecurityGroups: [!Ref EcsSecurityGroup]
-
-  ECShttplistener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn: ECSServiceRole
-    Properties:
-      DefaultActions:
-      - Type: forward
-        TargetGroupArn: !Ref ECSTG
-      LoadBalancerArn: !Ref ECSALB
-      Port: 80
-      Protocol: HTTP
-
-  ECShttpslistener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn: ECSServiceRole
-    Properties:
-        Certificates:
-          - CertificateArn: !Ref SSLCertificateARN
-        LoadBalancerArn: !Ref ECSALB
-        Port: 443
-        Protocol: HTTPS
-        DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref ECSTG
-
-  ECSTG:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    DependsOn: ECSALB
-    Properties:
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /viz/
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      Name: !Sub ${AWS::StackName}-ECSTG
-      Port: 80
-      Protocol: HTTP
-      UnhealthyThresholdCount: 2
-      VpcId: !Ref VPC
-
-  ECSServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service: [ecs.amazonaws.com]
-          Action: ['sts:AssumeRole']
-      Path: /
-      Policies:
-      - PolicyName: !Sub ${AWS::StackName}-ecs-service
-        PolicyDocument:
-          Statement:
-          - Effect: Allow
-            Action: ['elasticloadbalancing:DeregisterInstancesFromLoadBalancer', 'elasticloadbalancing:DeregisterTargets',
-              'elasticloadbalancing:Describe*', 'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
-              'elasticloadbalancing:RegisterTargets', 'ec2:Describe*', 'ec2:AuthorizeSecurityGroupIngress']
-            Resource: '*'
 
 ################################################################################
 #  PostgreSQL service
@@ -900,6 +963,6 @@ Resources:
   #     MetricName: HTTPCode_ELB_5XX_Count
 
 Outputs:
-  ECSALB:
-    Description: Your ALB DNS URL
-    Value: !Sub https://${ECSALB.DNSName}
+  AutomateURL:
+    Description: The URL of your Chef Automate server
+    Value: !Sub https://${NginxALB.DNSName}
