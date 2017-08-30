@@ -367,7 +367,6 @@ Resources:
   ChefPJELB:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
     Properties:
-      Name: !Sub ${AWS::StackName}-pj-lb
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroup 
       Subnets: !Ref LoadBalancerSubnets
@@ -562,6 +561,7 @@ Resources:
                 opscode_solr4['elasticsearch_replica_count'] = ${ElasticSearchReplicaCount}
                 bookshelf['storage_type'] = :sql
                 bookshelf['db_pool_size'] = 20
+                bookshelf['vip'] = '127.0.0.1'
                 rabbitmq['enable'] = false
                 rabbitmq['management_enabled'] = false
                 rabbitmq['queue_length_monitor_enabled'] = false
