@@ -53,6 +53,12 @@ function prevent_dns_overload {
   echo "`hostname -i` `hostname -f`" >> /etc/hosts
 }
 
+function push_jobs_configure () {
+	chef-server-ctl reconfigure --accept-license
+	opscode-push-jobs-server-ctl reconfigure
+	chef-server-ctl restart
+}
+
 # Here we go
 prevent_dns_overload
 
@@ -79,3 +85,6 @@ if [ -n "${BOOTSTRAP_TAGS}" ]; then
   echo "[INFO] syncing bootstrap secrets up to S3"
   upload_config
 fi
+
+echo "[INFO] Configuring push jobs"
+push_jobs_configure
