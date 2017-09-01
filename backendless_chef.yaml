@@ -13,7 +13,7 @@ Parameters:
   PushJobsPackage:
     Description: The URL to the push jobs server package which will be downloaded
     Type: String
-    Default: 'https://s3-us-west-2.amazonaws.com/sce-pub/opscode-push-jobs-server-2.2.4%2B20170829192444-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/current/opscode-push-jobs-server/2.2.5/el/7/opscode-push-jobs-server-2.2.5-1.el7.x86_64.rpm'
   FilesLocation:
     Description: The base URL for script and config files needed by this template (include a trailing /)
     Type: String
@@ -315,14 +315,6 @@ Resources:
       - FromPort: '10000'
         IpProtocol: tcp
         SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-        ToPort: '10000'
-      - FromPort: '10002'
-        IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-        ToPort: '10002'
-      - FromPort: '10003'
-        IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
         ToPort: '10003'
       Tags:
       - Key: Name
@@ -561,7 +553,7 @@ Resources:
                 opscode_solr4['elasticsearch_replica_count'] = ${ElasticSearchReplicaCount}
                 bookshelf['storage_type'] = :sql
                 bookshelf['db_pool_size'] = 20
-                bookshelf['vip'] = '127.0.0.1'
+                bookshelf['vip'] = '${ChefALB.DNSName}'.downcase
                 rabbitmq['enable'] = false
                 rabbitmq['management_enabled'] = false
                 rabbitmq['queue_length_monitor_enabled'] = false
