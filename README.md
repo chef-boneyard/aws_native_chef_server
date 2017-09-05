@@ -24,7 +24,10 @@ A Chef Server cluster utilizing Amazon services for high availability, auto-scal
 
 ## Fire up the Chef Server stack
 
-It is possible to launch using the AWS Cloudformation Console, although you may find it more repeatable and less error-prone to use the command aws command-line way. First copy file `stack_parameters.json.example` to `stack_parameters.json`, make the necessary changes, then run this command:
+You can launch this stack with the push of a button:
+<p><a href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?templateURL=https:%2F%2Fs3.amazonaws.com%2Faws-native-chef-server%2Fbackendless_chef.yaml&amp;stackName=my-chef-cluster"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png" alt="Launch Stack" /></a></p>
+
+However, the most repeatable and least error-prone way to launch this stack is to use the `aws` command-line. First copy file `stack_parameters.json.example` to `stack_parameters.json`, make the necessary changes, then run this command:
 
 ```bash
 aws cloudformation create-stack \
