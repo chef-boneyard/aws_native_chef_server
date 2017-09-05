@@ -1,15 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.3
+Description: AWS Native Chef Server v2.4.0
 
 Parameters:
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.15.8/el/7/chef-server-core-12.15.8-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.16.9/el/7/chef-server-core-12.16.9-1.el7.x86_64.rpm'
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
     Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.4/el/7/chef-manage-2.5.4-1.el7.x86_64.rpm'
+  PushJobsPackage:
+    Description: The URL to the push jobs server package which will be downloaded
+    Type: String
+    Default: 'https://packages.chef.io/files/current/opscode-push-jobs-server/2.2.5/el/7/opscode-push-jobs-server-2.2.5-1.el7.x86_64.rpm'
   FilesLocation:
     Description: The base URL for script and config files needed by this template (include a trailing /)
     Type: String
@@ -70,6 +74,13 @@ Parameters:
     Description: Provide a DB Subnet Group ARN (or leave blank to have one created for you)
     Default: ''
     Type: String
+  ElasticSearchVersion:
+    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.3. (5.3 recommended for new installs)
+    Type: String
+    Default: '2.3'
+    AllowedValues:
+    - '2.3'
+    - '5.3'
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
@@ -133,13 +144,13 @@ Conditions:
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      AMI: ami-a4c7edb2
+      AMI: ami-4fffc834
     us-east-2:
-      AMI: ami-8a7859ef
-    us-west-2:
-      AMI: ami-6df1e514
+      AMI: ami-ea87a78f
     us-west-1:
-      AMI: ami-327f5352
+      AMI: ami-3a674d5a
+    us-west-2:
+      AMI: ami-aa5ebdd2
 
 Resources:
 #########################################################################################
@@ -156,6 +167,9 @@ Resources:
       LaunchConfigurationName: !Ref ServerLaunchConfig
       TargetGroupARNs:
       - !Ref ChefTargetGroup
+      - !Ref ChefBootstrapTargetGroup
+      LoadBalancerNames:
+      - !Ref ChefPJELB
       MaxSize: '1'
       MinSize: '1'
       Tags:
@@ -305,6 +319,10 @@ Resources:
         IpProtocol: tcp
         SourceSecurityGroupId: !Ref SSHSecurityGroup
         ToPort: '22'
+      - FromPort: '10000'
+        IpProtocol: tcp
+        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        ToPort: '10003'
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-FE-SG
@@ -327,11 +345,40 @@ Resources:
         FromPort: '443'
         IpProtocol: tcp
         ToPort: '443'
+      - FromPort: '10000'
+        IpProtocol: tcp
+        CidrIp: 0.0.0.0/0
+        ToPort: '10003'
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-ELB-SG
       VpcId: !Ref VPC
     Type: AWS::EC2::SecurityGroup
+
+  ChefPJELB:
+    Type: "AWS::ElasticLoadBalancing::LoadBalancer"
+    Properties:
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Subnets: !Ref LoadBalancerSubnets
+      Scheme: !Ref LoadBalancerScheme
+      Listeners:
+        - LoadBalancerPort: '10000'
+          InstancePort: '10000'
+          Protocol: TCP
+        - LoadBalancerPort: '10002'
+          InstancePort: '10002'
+          Protocol: TCP
+        - LoadBalancerPort: '10003'
+          InstancePort: '10003'
+          Protocol: TCP
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-pj-lb
+        - Key: X-Dept
+          Value: !Ref ContactDept
+        - Key: X-Contact
+          Value: !Ref ContactEmail
 
   ChefALB:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
@@ -362,7 +409,40 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ChefTargetGroup
 
+  ChefALBPJListenerRule:
+    Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ChefBootstrapTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - "/organizations/*/pushy/*"
+      ListenerArn: !Ref ChefALBListener
+      Priority: 1
+
   ChefTargetGroup:
+      Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+      Properties:
+        HealthCheckIntervalSeconds: 60
+        UnhealthyThresholdCount: 10
+        HealthCheckPath: /_status
+        VpcId: !Ref VPC
+        Port: 443
+        Protocol: HTTPS
+        TargetGroupAttributes:
+          - Key: stickiness.enabled
+            Value: true
+          - Key: stickiness.type
+            Value: lb_cookie
+        Tags:
+          - Key: X-Dept
+            Value: !Ref ContactDept
+          - Key: X-Contact
+            Value: !Ref ContactEmail
+
+  ChefBootstrapTargetGroup:
       Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
       Properties:
         HealthCheckIntervalSeconds: 60
@@ -421,6 +501,7 @@ Resources:
             rpm:
               chef-server-core: !Sub ${ChefServerPackage}
               chef-manage: !Sub ${ChefManagePackage}
+              opscode-push-jobs-server: !Sub ${PushJobsPackage}
             yum:
               perl: []
               perl-Switch: []
@@ -431,6 +512,10 @@ Resources:
               zip: []
               unzip: []
           files:
+            /etc/opscode-push-jobs-server/opscode-push-jobs-server.rb:
+              content: !Sub |
+                opscode_pushy_server['vip'] = '127.0.0.1'
+                opscode_pushy_server['server_name_advertised'] = '${ChefPJELB.DNSName}'
             /etc/chef-manage/manage.rb:
               content: !Sub |
                 disable_sign_up ${DisableSignup}
@@ -467,6 +552,7 @@ Resources:
                 opscode_solr4['elasticsearch_replica_count'] = ${ElasticSearchReplicaCount}
                 bookshelf['storage_type'] = :sql
                 bookshelf['db_pool_size'] = 20
+                bookshelf['vip'] = '${ChefALB.DNSName}'.downcase
                 rabbitmq['enable'] = false
                 rabbitmq['management_enabled'] = false
                 rabbitmq['queue_length_monitor_enabled'] = false
@@ -480,7 +566,7 @@ Resources:
                 start on runlevel [2345]
                 stop on shutdown
                 respawn
-                exec /usr/local/bin/aws-signing-proxy 
+                exec /usr/local/bin/aws-signing-proxy
             /etc/aws-signing-proxy.yml:
               content: !Sub |
                 listen-address: 127.0.0.1
@@ -573,7 +659,7 @@ Resources:
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
     Properties:
-      ElasticsearchVersion: 2.3
+      ElasticsearchVersion: !Ref ElasticSearchVersion
       ElasticsearchClusterConfig:
         InstanceCount: !Sub ${ElasticSearchShardCount}
         ZoneAwarenessEnabled: false
