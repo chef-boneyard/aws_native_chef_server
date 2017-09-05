@@ -341,14 +341,6 @@ Resources:
       - FromPort: '10000'
         IpProtocol: tcp
         CidrIp: 0.0.0.0/0 
-        ToPort: '10000'
-      - FromPort: '10002'
-        IpProtocol: tcp
-        CidrIp: 0.0.0.0/0 
-        ToPort: '10002'
-      - FromPort: '10003'
-        IpProtocol: tcp
-        CidrIp: 0.0.0.0/0 
         ToPort: '10003'
       Tags:
       - Key: Name
