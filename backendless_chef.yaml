@@ -5,7 +5,7 @@ Parameters:
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.15.8/el/7/chef-server-core-12.15.8-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.16.9/el/7/chef-server-core-12.16.9-1.el7.x86_64.rpm'
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
@@ -132,18 +132,17 @@ Conditions:
     !Equals [ !Ref ChefSecretsBucket, '' ]
   CreateDBSubnetGroup:
     !Equals [ !Ref DBSubnetGroupArn, '' ]
-
-# Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      AMI: ami-a4c7edb2
+      AMI: ami-4fffc834
     us-east-2:
-      AMI: ami-8a7859ef
-    us-west-2:
-      AMI: ami-6df1e514
+      AMI: ami-ea87a78f
     us-west-1:
-      AMI: ami-327f5352
+      AMI: ami-3a674d5a
+    us-west-2:
+      AMI: ami-aa5ebdd2
+# Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 
 Resources:
 #########################################################################################
