@@ -82,9 +82,8 @@ fi
 
 # the bootstrap instance should sync files after reconfigure, regardless if configs exist or not (upgrades)
 if [ -n "${BOOTSTRAP_TAGS}" ]; then
+  echo "[INFO] Configuring push jobs"
+  push_jobs_configure
   echo "[INFO] syncing bootstrap secrets up to S3"
   upload_config
 fi
-
-echo "[INFO] Configuring push jobs"
-push_jobs_configure
