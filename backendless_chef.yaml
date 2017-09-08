@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.4.0
+Description: AWS Native Chef Server v2.4.2
 
 Parameters:
   ChefServerPackage:
@@ -572,6 +572,7 @@ Resources:
                 listen-address: 127.0.0.1
                 port: 9200
                 target: https://${ElasticsearchDomain.DomainEndpoint}
+                region: ${AWS::Region}
           commands:
             01_start_es_proxy:
               command: initctl start aws-signing-proxy
