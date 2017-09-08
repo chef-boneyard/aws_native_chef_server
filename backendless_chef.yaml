@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.4.2
+Description: AWS Native Chef Server v2.4.3
 
 Parameters:
   ChefServerPackage:
@@ -640,6 +640,7 @@ Resources:
       MultiAZ: true
       Engine: postgres
       EngineVersion: 9.6.3
+      AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
       DBSubnetGroupName: !If [CreateDBSubnetGroup, !Ref DBSubnetGroup, !Ref DBSubnetGroupArn]
