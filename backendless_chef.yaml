@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.4.3
+Description: AWS Native Chef Server v2.4.4
 
 Parameters:
   ChefServerPackage:
@@ -163,7 +163,6 @@ Resources:
       - DBPostgres
       - ElasticsearchDomain
     Properties:
-      AvailabilityZones: {"Fn::GetAZs": ""}
       LaunchConfigurationName: !Ref ServerLaunchConfig
       TargetGroupARNs:
       - !Ref ChefTargetGroup
@@ -191,7 +190,6 @@ Resources:
       - BootstrapAutoScaleGroup
       - WaitCondition
     Properties:
-      AvailabilityZones: {"Fn::GetAZs": ""}
       LaunchConfigurationName: !Ref ServerLaunchConfig
       TargetGroupARNs:
       - !Ref ChefTargetGroup
