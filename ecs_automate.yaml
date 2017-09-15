@@ -9,18 +9,22 @@ Parameters:
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Provide exactly THREE (3) subnets in your selected VPC
-  DesiredCapacity:
+  DesiredContainerCount:
     Type: Number
     Default: 2
+    Description: Number of containers to launch for any HA service. Note: make this 1/2 or less than DesiredCapacity
+  DesiredCapacity:
+    Type: Number
+    Default: 4
     Description: Number of instances to launch in your ECS cluster.
   MaxSize:
     Type: Number
-    Default: 3
+    Default: 6
     Description: Maximum number of instances that can be launched in your ECS cluster.
   InstanceType:
     Description: EC2 instance type
     Type: String
-    Default: m4.xlarge
+    Default: m4.large
     AllowedValues: [t2.micro, t2.small, t2.medium, t2.large, m3.medium, m3.large,
       m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge,
       c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, c3.large, c3.xlarge,
@@ -64,13 +68,13 @@ Parameters:
 Mappings:
   AWSRegionToAMI:
     us-east-1:
-      AMIID: ami-d61027ad
+      AMIID: ami-9eb4b1e5
     us-east-2:
-      AMIID: ami-bb8eaede
+      AMIID: ami-1c002379
     us-west-1:
-      AMIID: ami-514e6431
+      AMIID: ami-4a2c192a
     us-west-2:
-      AMIID: ami-c6f81abe
+      AMIID: ami-1d668865
 
 Resources:
 # First, define the ECS cluster: an autoscaling group of EC2 instances running the special ECS AMI
@@ -291,7 +295,7 @@ Resources:
     DependsOn: Nginxhttpslistener
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredContainerCount
       LoadBalancers:
       - ContainerName: automate-nginx
         ContainerPort: 80
@@ -314,11 +318,13 @@ Resources:
         Hostname: automate-nginx
         Cpu: 100
         Essential: 'true'
-        Image: irvingpop/automate-nginx:latest
+        Image: chefdemo/automate-nginx:current
         Memory: 512
         PortMappings:
         - ContainerPort: 80
         - ContainerPort: 443
+        - ContainerPort: 9656
+        - ContainerPort: 9666
         Command:
         - --peer
         - 172.17.0.1
@@ -430,7 +436,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredContainerCount
       TaskDefinition: !Ref WorkflowTask
       LoadBalancers:
       - ContainerName: workflow
@@ -452,10 +458,12 @@ Resources:
         Hostname: workflow
         Cpu: 100
         Essential: 'true'
-        Image: irvingpop/workflow-server:latest
+        Image: chefdemo/workflow-server:current
         Memory: 1024
         PortMappings:
         - ContainerPort: 9611
+        - ContainerPort: 9653
+        - ContainerPort: 9663
         Environment:
         - Name: HAB_WORKFLOW_SERVER
           Value: !Sub |
@@ -546,7 +554,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredContainerCount
       TaskDefinition: !Ref ComplianceTask
 
   ComplianceTask:
@@ -561,8 +569,12 @@ Resources:
         Hostname: compliance
         Cpu: 100
         Essential: 'true'
-        Image: irvingpop/compliance:latest
+        Image: chefdemo/compliance:current
         Memory: 768
+        PortMappings:
+        - ContainerPort: 2134
+        - ContainerPort: 9655
+        - ContainerPort: 9665
         Command:
         - --peer
         - 172.17.0.1
@@ -593,7 +605,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredContainerCount
       TaskDefinition: !Ref NotificationsTask
 
   NotificationsTask:
@@ -608,8 +620,12 @@ Resources:
         Hostname: notifications
         Cpu: 100
         Essential: 'true'
-        Image: irvingpop/notifications:latest
+        Image: chefdemo/notifications:unstable
         Memory: 768
+        PortMappings:
+        - ContainerPort: 4000
+        - ContainerPort: 9654
+        - ContainerPort: 9664
         Command:
         - --peer
         - 172.17.0.1
@@ -649,7 +665,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredContainerCount
       TaskDefinition: !Ref LogstashTask
 
   LogstashTask:
@@ -664,8 +680,11 @@ Resources:
       - Name: logstash
         Cpu: 1000
         Essential: 'true'
-        Image: irvingpop/logstash:latest
+        Image: chefdemo/logstash:current
         Memory: 2048
+        PortMappings:
+        - ContainerPort: 9652
+        - ContainerPort: 9662
         Command:
         - --peer
         - 172.17.0.1
@@ -698,7 +717,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredContainerCount
       TaskDefinition: !Ref ElasticsearchTask
 
   ElasticsearchTask:
@@ -715,6 +734,10 @@ Resources:
         Essential: 'true'
         Image: irvingpop/aws-signing-proxy:latest
         Memory: 256
+        PortMappings:
+        - ContainerPort: 9200
+        - ContainerPort: 9651
+        - ContainerPort: 9661
         Command:
         - --peer
         - 172.17.0.1
@@ -743,7 +766,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: 1
+      DesiredCount: !Ref DesiredContainerCount
       TaskDefinition: !Ref RabbitMQTask
 
   RabbitMQTask:
@@ -758,6 +781,10 @@ Resources:
         Essential: 'true'
         Image: chefdemo/rabbitmq:current
         Memory: 768
+        PortMappings:
+        - ContainerPort: 5672
+        - ContainerPort: 9650
+        - ContainerPort: 9660
         Command:
         - --peer
         - 172.17.0.1
