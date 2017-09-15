@@ -131,6 +131,10 @@ Parameters:
   ContactEmail:
     Description: Contact email for Cloudwatch notifications and instance tagging
     Type: String
+  ChefDefaultOrgName:
+    Default: ''
+    Description: Default Chef organization name (typically only used when migrating from Chef Server 11, otherwise leave blank)
+    Type: String
 
 Conditions:
   CreateChefServerIamRole:
@@ -556,6 +560,7 @@ Resources:
                 rabbitmq['queue_length_monitor_enabled'] = false
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
+                default_orgname '${ChefDefaultOrgName}'.empty? ? null : '${ChefDefaultOrgName}'
             /usr/local/bin/aws-signing-proxy:
               source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.3.0/aws-signing-proxy
               mode: '000755'
