@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.4.4
+Description: AWS Native Chef Server v2.4.5
 
 Parameters:
   ChefServerPackage:
@@ -9,7 +9,7 @@ Parameters:
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.4/el/7/chef-manage-2.5.4-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.8/el/7/chef-manage-2.5.8-1.el7.x86_64.rpm'
   PushJobsPackage:
     Description: The URL to the push jobs server package which will be downloaded
     Type: String
