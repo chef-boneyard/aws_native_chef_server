@@ -12,7 +12,7 @@ Parameters:
   DesiredContainerCount:
     Type: Number
     Default: 2
-    Description: Number of containers to launch for any HA service. Note: make this 1/2 or less than DesiredCapacity
+    Description: Number of containers to launch for any HA service. Note, make this 1/2 or less than DesiredCapacity
   DesiredCapacity:
     Type: Number
     Default: 4
@@ -665,7 +665,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      DesiredCount: !Ref DesiredContainerCount
+      DesiredCount: 8
       TaskDefinition: !Ref LogstashTask
 
   LogstashTask:
@@ -675,16 +675,13 @@ Resources:
     - RabbitMQService
     Properties:
       Family: !Sub ${AWS::StackName}-logstash
-      NetworkMode: host
+      NetworkMode: bridge
       ContainerDefinitions:
       - Name: logstash
         Cpu: 1000
         Essential: 'true'
         Image: chefdemo/logstash:current
         Memory: 2048
-        PortMappings:
-        - ContainerPort: 9652
-        - ContainerPort: 9662
         Command:
         - --peer
         - 172.17.0.1
