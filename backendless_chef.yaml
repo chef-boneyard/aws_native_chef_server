@@ -1,11 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.4.5
+Description: AWS Native Chef Server v2.4.6
 
 Parameters:
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.16.9/el/7/chef-server-core-12.16.9-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.16.14/el/7/chef-server-core-12.16.14-1.el7.x86_64.rpm'
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
@@ -13,7 +13,7 @@ Parameters:
   PushJobsPackage:
     Description: The URL to the push jobs server package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/current/opscode-push-jobs-server/2.2.5/el/7/opscode-push-jobs-server-2.2.5-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.6/el/7/opscode-push-jobs-server-2.2.6-1.el7.x86_64.rpm'
   FilesLocation:
     Description: The base URL for script and config files needed by this template (include a trailing /)
     Type: String
@@ -357,6 +357,11 @@ Resources:
       VpcId: !Ref VPC
     Type: AWS::EC2::SecurityGroup
 
+  # A special ELB just for Push Jobs traffic (TCP ports 10000-10003)
+  # Note: Push Jobs server isn't truly HA. Although job state is stored in the database,
+  #       all node state is stored ONLY in memory. Therefore we can only have 1
+  #       active push jobs server at a time. An elegant solution for this in AWS
+  #       is to have all Push Jobs traffic only routed to the BootStrap ASG
   ChefPJELB:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
     Properties:
@@ -376,7 +381,7 @@ Resources:
           Protocol: TCP
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-pj-lb
+          Value: !Sub ${AWS::StackName}-pushjobs-lb
         - Key: X-Dept
           Value: !Ref ContactDept
         - Key: X-Contact
@@ -411,6 +416,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ChefTargetGroup
 
+  # Ensure that requests to the Push Jobs ("pushy") API are only routed to the bootstrap machine
   ChefALBPJListenerRule:
     Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
     Properties:
