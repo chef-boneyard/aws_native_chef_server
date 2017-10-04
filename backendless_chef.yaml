@@ -81,6 +81,7 @@ Parameters:
     AllowedValues:
     - '2.3'
     - '5.3'
+    - '5.5'
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
