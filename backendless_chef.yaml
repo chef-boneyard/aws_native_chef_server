@@ -130,6 +130,14 @@ Parameters:
     Default: ''
   ###############################################################################
   # Other Settings
+  ChefAutomateServerUrl:
+    Description: The URL of the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
+    Type: String
+    Default: ''
+  ChefAutomateToken:
+    Description: The secret token used to communicate with the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
+    Type: String
+    Default: ''
   ChefDefaultOrgName:
     Default: ''
     Description: Default Chef organization name (typically only used when migrating from Chef Server 11, otherwise leave blank)
@@ -612,6 +620,11 @@ Resources:
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
                 default_orgname '${ChefDefaultOrgName}'.empty? ? null : '${ChefDefaultOrgName}'
+                # special handling for Chef Automate URL and Token which might be empty strings
+                unless '${ChefAutomateServerUrl}'.empty? && ! '${ChefAutomateToken}'.empty?
+                  data_collector['root_url'] = '${ChefAutomateServerUrl}'
+                  data_collector['token'] = '${ChefAutomateToken}'
+                end
             /usr/local/bin/aws-signing-proxy:
               source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.3.0/aws-signing-proxy
               mode: '000755'
