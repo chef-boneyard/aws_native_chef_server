@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.4.7
+Description: AWS Native Chef Server v2.5.0
 
 Parameters:
   ChefServerPackage:
@@ -81,6 +81,7 @@ Parameters:
     AllowedValues:
     - '2.3'
     - '5.3'
+    - '5.5'
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
@@ -148,13 +149,13 @@ Conditions:
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      AMI: ami-4fffc834
+      AMI: ami-8c1be5f6
     us-east-2:
-      AMI: ami-ea87a78f
+      AMI: ami-c5062ba0
     us-west-1:
-      AMI: ami-3a674d5a
+      AMI: ami-02eada62
     us-west-2:
-      AMI: ami-aa5ebdd2
+      AMI: ami-e689729e
 
 Resources:
 #########################################################################################
