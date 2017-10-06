@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.5.0
+Description: AWS Native Chef Server v3.0.0
 
 Parameters:
   ChefServerPackage:
@@ -22,9 +22,6 @@ Parameters:
     Description: The maximum number of additional frontend instances to launch
     Type: Number
     Default: 3
-  LoadBalancerSubnets:
-    Description: Provide a list of Subnet IDs for the ELB
-    Type: List<AWS::EC2::Subnet::Id>
   LoadBalancerScheme:
     Description: Network Scheme for the ELB
     Type: String
@@ -69,10 +66,6 @@ Parameters:
   DBInstanceClass:
     Description: Storage size allocated for the database
     Default: 'db.m4.large'
-    Type: String
-  DBSubnetGroupArn:
-    Description: Provide a DB Subnet Group ARN (or leave blank to have one created for you)
-    Default: ''
     Type: String
   ElasticSearchVersion:
     Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.3. (5.3 recommended for new installs)
@@ -142,8 +135,6 @@ Conditions:
     !Equals [ !Ref ChefServerIamRole, '' ]
   CreateChefSecretsBucket:
     !Equals [ !Ref ChefSecretsBucket, '' ]
-  CreateDBSubnetGroup:
-    !Equals [ !Ref DBSubnetGroupArn, '' ]
 
 # Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 Mappings:
@@ -368,7 +359,7 @@ Resources:
     Properties:
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroup
-      Subnets: !Ref LoadBalancerSubnets
+      Subnets: !Ref ChefServerSubnets
       Scheme: !Ref LoadBalancerScheme
       Listeners:
         - LoadBalancerPort: '10000'
@@ -394,7 +385,7 @@ Resources:
       Name: !Sub ${AWS::StackName}-lb
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroup
-      Subnets: !Ref LoadBalancerSubnets
+      Subnets: !Ref ChefServerSubnets
       # IpAddressType: dualstack
       Scheme: !Ref LoadBalancerScheme
       Tags:
@@ -630,7 +621,6 @@ Resources:
           SourceSecurityGroupId: !Ref FrontendSecurityGroup
 
   DBSubnetGroup:
-    Condition: CreateDBSubnetGroup
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: RDS DB subnet group
@@ -653,7 +643,7 @@ Resources:
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
-      DBSubnetGroupName: !If [CreateDBSubnetGroup, !Ref DBSubnetGroup, !Ref DBSubnetGroupArn]
+      DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref DBSecurityGroup
       PubliclyAccessible: false
