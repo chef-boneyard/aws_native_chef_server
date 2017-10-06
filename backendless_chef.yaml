@@ -85,10 +85,18 @@ Parameters:
     Description: The URL to the push jobs server package which will be downloaded
     Type: String
     Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.6/el/7/opscode-push-jobs-server-2.2.6-1.el7.x86_64.rpm'
-  FilesLocation:
-    Description: The base URL for script and config files needed by this template (include a trailing /)
+  MainScriptLocation:
+    Description: The S3 bucket location of the main script which configures Chef Server
     Type: String
-    Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/master/files/'
+    Default: s3://aws-native-chef-server/files/main.sh
+  BeforeScriptLocation:
+    Description: The S3 bucket location of the script which runs before the Main script
+    Type: String
+    Default: s3://aws-native-chef-server/files/before.sh
+  AfterScriptLocation:
+    Description: The S3 bucket location of the script which runs after the Main script
+    Type: String
+    Default: s3://aws-native-chef-server/files/after.sh
   ###############################################################################
   # Security Settings
   LoadBalancerScheme:
@@ -159,7 +167,9 @@ Metadata:
           - ChefServerPackage
           - ChefManagePackage
           - PushJobsPackage
-          - FilesLocation
+          - MainScriptLocation
+          - BeforeScriptLocation
+          - AfterScriptLocation
       - Label:
           default: "Security Settings"
         Parameters:
@@ -620,17 +630,25 @@ Resources:
           commands:
             01_start_es_proxy:
               command: initctl start aws-signing-proxy
-            02_configure_chef_server:
+            02_before_script:
+              command: !Sub |
+                aws s3 cp ${BeforeScriptLocation} /tmp/before.sh
+                bash -x /tmp/before.sh
+            03_configure_chef_server:
               command: !Sub
               - |
                 export STACKNAME=${AWS::StackName}
                 export BUCKET=${S3BUCKET}
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
-                curl -s ${FilesLocation}main.sh | bash -x
+                aws s3 cp ${MainScriptLocation} /tmp/main.sh
+                bash -x /tmp/main.sh
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
-
-            03_configure_cloudwatch_monitoring:
+            04_after_script:
+              command: !Sub |
+                aws s3 cp ${AfterScriptLocation} /tmp/after.sh
+                bash -x /tmp/after.sh
+            05_configure_cloudwatch_monitoring:
               command: !Sub |
                 mkdir /opt/cloudwatch_monitoring
                 cd /opt/cloudwatch_monitoring
