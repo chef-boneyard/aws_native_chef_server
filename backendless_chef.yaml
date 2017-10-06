@@ -2,6 +2,77 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS Native Chef Server v3.0.0
 
 Parameters:
+  # Required Parameters
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
+  ChefServerSubnets:
+    Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
+    Type: List<AWS::EC2::Subnet::Id>
+  SSLCertificateARN:
+    Default: 'arn:aws:iam::'
+    Description: SSL Certficate ARN for SSL Certficate
+    Type: String
+  SSHSecurityGroup:
+    Description: Select Security Group for SSH Access (must be within the specified VPC)
+    Type: AWS::EC2::SecurityGroup::Id
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+  DBPassword:
+    Description: Enter DB Password
+    NoEcho: true
+    Type: String
+  ContactEmail:
+    Description: Contact email for Cloudwatch notifications and instance tagging
+    Type: String
+  ContactDept:
+    Description: Contact department for billing purposes
+    Type: String
+  ###############################################################################
+  # Performance Settings
+  InstanceType:
+    ConstraintDescription: must be a valid EC2 instance type.
+    Default: c4.large
+    Type: String
+  MaxFrontendInstances:
+    Description: The maximum number of additional frontend instances to launch
+    Type: Number
+    Default: 3
+  LicenseCount:
+    Default: '25'
+    Description: Enter how many licenses you have purchased
+    Type: String
+  DBInstanceClass:
+    Description: Storage size allocated for the database
+    Default: 'db.m4.large'
+    Type: String
+  DBAllocatedStorage:
+    Description: Storage size allocated for the database
+    Default: '100'
+    Type: String
+  DBIops:
+    Description: IOPS allocated to the storage (storage size * 10)
+    Default: '1000'
+    Type: String
+  ElasticSearchVersion:
+    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.3. (5.3 recommended for new installs)
+    Type: String
+    Default: '5.5'
+    AllowedValues:
+    - '2.3'
+    - '5.3'
+    - '5.5'
+  ElasticSearchShardCount:
+    Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
+    Default: 3
+    Type: Number
+  ElasticSearchReplicaCount:
+    Description: Replication factor for ElasticSearch shards (how many extra copies to keep)
+    Default: 2
+    Type: Number
+  ###############################################################################
+  # Package Versions & Locations
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
@@ -18,10 +89,8 @@ Parameters:
     Description: The base URL for script and config files needed by this template (include a trailing /)
     Type: String
     Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/master/files/'
-  MaxFrontendInstances:
-    Description: The maximum number of additional frontend instances to launch
-    Type: Number
-    Default: 3
+  ###############################################################################
+  # Security Settings
   LoadBalancerScheme:
     Description: Network Scheme for the ELB
     Type: String
@@ -29,9 +98,6 @@ Parameters:
     AllowedValues:
     - 'internet-facing'
     - 'internal'
-  ChefServerSubnets:
-    Description: Provide a list of Subnet IDs for the Chef Servers
-    Type: List<AWS::EC2::Subnet::Id>
   ChefServerAssociatePublicIpAddress:
     Description: Assign public IP addresses to the Chef Servers or not
     Type: String
@@ -39,71 +105,6 @@ Parameters:
     AllowedValues:
     - 'true'
     - 'false'
-  DBPassword:
-    Description: Enter DB Password
-    NoEcho: true
-    Type: String
-  DBPort:
-    Default: '5432'
-    Description: Enter DB Port
-    Type: String
-  DBUser:
-    Description: Enter DB User Name
-    Default: 'chefadmin'
-    Type: String
-  DBName:
-    Description: Enter DB Name
-    Default: 'chef'
-    Type: String
-  DBAllocatedStorage:
-    Description: Storage size allocated for the database
-    Default: '100'
-    Type: String
-  DBIops:
-    Description: IOPS allocated to the storage (storage size * 10)
-    Default: '1000'
-    Type: String
-  DBInstanceClass:
-    Description: Storage size allocated for the database
-    Default: 'db.m4.large'
-    Type: String
-  ElasticSearchVersion:
-    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.3. (5.3 recommended for new installs)
-    Type: String
-    Default: '2.3'
-    AllowedValues:
-    - '2.3'
-    - '5.3'
-    - '5.5'
-  ElasticSearchShardCount:
-    Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
-    Default: 3
-    Type: Number
-  ElasticSearchReplicaCount:
-    Description: Replication factor for ElasticSearch shards (how many extra copies to keep)
-    Default: 2
-    Type: Number
-  InstanceType:
-    ConstraintDescription: must be a valid EC2 instance type.
-    Default: c4.large
-    Type: String
-  KeyName:
-    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
-    Type: AWS::EC2::KeyPair::KeyName
-  LicenseCount:
-    Default: '25'
-    Description: Enter how many licenses you have purchased
-    Type: String
-  SSHSecurityGroup:
-    Description: Select Security Group for SSH Access
-    Type: AWS::EC2::SecurityGroup::Id
-  SSLCertificateARN:
-    Default: 'arn:aws:iam::'
-    Description: SSL Certficate ARN for SSL Certficate
-    Type: String
-  VPC:
-    Description: Choose VPC to use
-    Type: AWS::EC2::VPC::Id
   DisableSignup:
     AllowedValues:
     - 'true'
@@ -119,16 +120,54 @@ Parameters:
     Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
     Type: String
     Default: ''
-  ContactDept:
-    Description: Contact department for billing purposes
-    Type: String
-  ContactEmail:
-    Description: Contact email for Cloudwatch notifications and instance tagging
-    Type: String
+  ###############################################################################
+  # Other Settings
   ChefDefaultOrgName:
     Default: ''
     Description: Default Chef organization name (typically only used when migrating from Chef Server 11, otherwise leave blank)
     Type: String
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Required Parameters"
+        Parameters:
+          - VPC
+          - ChefServerSubnets
+          - SSLCertificateARN
+          - SSHSecurityGroup
+          - KeyName
+          - DBPassword
+          - ContactEmail
+          - ContactDept
+      - Label:
+          default: "Performance Settings"
+        Parameters:
+          - InstanceType
+          - MaxFrontendInstances
+          - LicenseCount
+          - DBInstanceClass
+          - DBAllocatedStorage
+          - DBIops
+          - ElasticSearchVersion
+          - ElasticSearchShardCount
+          - ElasticSearchReplicaCount
+      - Label:
+          default: "Package Versions & Locations"
+        Parameters:
+          - ChefServerPackage
+          - ChefManagePackage
+          - PushJobsPackage
+          - FilesLocation
+      - Label:
+          default: "Security Settings"
+        Parameters:
+          - LoadBalancerScheme
+          - ChefServerAssociatePublicIpAddress
+          - DisableSignup
+          - ChefServerIamRole
+          - ChefSecretsBucket
 
 Conditions:
   CreateChefServerIamRole:
@@ -137,6 +176,10 @@ Conditions:
     !Equals [ !Ref ChefSecretsBucket, '' ]
 
 # Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
+# NOTE: If you wish to replace this AMI with your own RHEL-ish variety, be prepared to
+# - have the `aws` & `cfn-init` tools preinstalled
+# - Install and enable NTP
+# - Support upstart as the init system, or else rewrite the below aws-signing-proxy service defitinion into systemd
 Mappings:
   AWSRegion2AMI:
     us-east-1:
@@ -526,7 +569,7 @@ Resources:
                 license['nodes'] = ${LicenseCount}
                 postgresql['external'] = true
                 postgresql['vip'] = '${DBPostgres.Endpoint.Address}'
-                postgresql['db_superuser'] = '${DBUser}'
+                postgresql['db_superuser'] = 'chefadmin'
                 postgresql['db_superuser_password'] = '${DBPassword}'
                 oc_chef_authz['http_init_count'] = 100
                 oc_chef_authz['http_queue_max'] = 200
@@ -616,8 +659,8 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: !Ref DBPort
-          ToPort: !Ref DBPort
+          FromPort: 5432
+          ToPort: 5432
           SourceSecurityGroupId: !Ref FrontendSecurityGroup
 
   DBSubnetGroup:
@@ -630,10 +673,10 @@ Resources:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: "Snapshot"
     Properties:
-      DBName: !Ref DBName
+      DBName: chef
       AllocatedStorage: !Ref DBAllocatedStorage
       Iops: !Ref DBIops
-      MasterUsername: !Ref DBUser
+      MasterUsername: chefadmin
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: !Ref DBInstanceClass
       StorageType: io1
