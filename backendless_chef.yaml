@@ -626,7 +626,7 @@ Resources:
                   data_collector['token'] = '${ChefAutomateToken}'
                 end
             /usr/local/bin/aws-signing-proxy:
-              source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.3.0/aws-signing-proxy
+              source: https://github.com/chef-customers/aws-signing-proxy/releases/download/v0.3.0/aws-signing-proxy
               mode: '000755'
             /etc/init/aws-signing-proxy.conf:
               content: !Sub |
