@@ -106,6 +106,10 @@ Parameters:
     AllowedValues:
     - 'internet-facing'
     - 'internal'
+  LoadBalancerSecurityGroupId:
+    Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
+    Type: String
+    Default: ''
   ChefServerAssociatePublicIpAddress:
     Description: Assign public IP addresses to the Chef Servers or not
     Type: String
@@ -195,6 +199,8 @@ Conditions:
     !Equals [ !Ref ChefServerIamRole, '' ]
   CreateChefSecretsBucket:
     !Equals [ !Ref ChefSecretsBucket, '' ]
+  CreateLoadBalancerSecurityGroup:
+    !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
 
 # Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 # NOTE: If you wish to replace this AMI with your own RHEL-ish variety, be prepared to
@@ -367,11 +373,11 @@ Resources:
       SecurityGroupIngress:
       - FromPort: '80'
         IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         ToPort: '80'
       - FromPort: '443'
         IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         ToPort: '443'
       - FromPort: '22'
         IpProtocol: tcp
@@ -379,7 +385,7 @@ Resources:
         ToPort: '22'
       - FromPort: '10000'
         IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         ToPort: '10003'
       Tags:
       - Key: Name
@@ -387,6 +393,7 @@ Resources:
       VpcId: !Ref VPC
 
   LoadBalancerSecurityGroup:
+    Condition: CreateLoadBalancerSecurityGroup
     Properties:
       GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
       SecurityGroupEgress:
@@ -422,7 +429,7 @@ Resources:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
     Properties:
       SecurityGroups:
-        - !Ref LoadBalancerSecurityGroup
+        - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
       Subnets: !Ref ChefServerSubnets
       Scheme: !Ref LoadBalancerScheme
       Listeners:
@@ -448,7 +455,7 @@ Resources:
     Properties:
       Name: !Sub ${AWS::StackName}-lb
       SecurityGroups:
-        - !Ref LoadBalancerSecurityGroup
+        - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
       Subnets: !Ref ChefServerSubnets
       # IpAddressType: dualstack
       Scheme: !Ref LoadBalancerScheme
