@@ -106,6 +106,10 @@ Parameters:
     Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
     Default: ''
+  FrontendSecurityGroupId:
+    Description: Supply a security group for your chef frontends (leave blank to have it created for you). Using the default security group is recommended.
+    Type: String
+    Default: ''
   ChefServerAssociatePublicIpAddress:
     Description: Assign public IP addresses to the Chef Servers or not
     Type: String
@@ -196,6 +200,8 @@ Conditions:
     !Equals [ !Ref ChefSecretsBucket, '' ]
   CreateLoadBalancerSecurityGroup:
     !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
+  CreateFrontendSecurityGroup:
+    !Equals [ !Ref FrontendSecurityGroupId, '' ]
 
 # Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 # NOTE: If you wish to replace this AMI with your own RHEL-ish variety, be prepared to
@@ -358,6 +364,7 @@ Resources:
 
   FrontendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateFrontendSecurityGroup
     Properties:
       GroupDescription: Setup Ingress/Egress for Chef Frontend
       SecurityGroupEgress:
@@ -547,7 +554,7 @@ Resources:
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       SecurityGroups:
-      - !Ref FrontendSecurityGroup
+      - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
       - !Ref SSHSecurityGroup
       UserData:
         "Fn::Base64": !Sub |
@@ -707,7 +714,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          SourceSecurityGroupId: !Ref FrontendSecurityGroup
+          SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
