@@ -92,11 +92,11 @@ Parameters:
   BeforeScriptLocation:
     Description: The S3 bucket location of the script which runs before the Main script
     Type: String
-    Default: s3://aws-native-chef-server/files/before.sh
+    Default: '' 
   AfterScriptLocation:
     Description: The S3 bucket location of the script which runs after the Main script
     Type: String
-    Default: s3://aws-native-chef-server/files/after.sh
+    Default: ''
   ###############################################################################
   # Security Settings
   LoadBalancerScheme:
@@ -655,11 +655,11 @@ Resources:
               command: initctl start aws-signing-proxy
             02_before_script:
               command: !Sub |
-                if [ -n ${BeforeScriptLocation} ]; then
+                if [ -n '${BeforeScriptLocation}' ]; then
                     aws s3 cp ${BeforeScriptLocation} /tmp/before.sh
                     bash -x /tmp/before.sh
                 fi
-                if [ -n ${ChefServerCustomConfig} ]; then
+                if [ -n '${ChefServerCustomConfig}' ]; then
                     aws s3 cp ${ChefServerCustomConfig} /etc/opscode/chef-server-custom.rb
                     echo "# Appended from chef-server-custom.rb" >> /etc/opscode/chef-server.rb
                     cat /etc/opscode/chef-server-custom.rb >> /etc/opscode/chef-server.rb
@@ -676,10 +676,10 @@ Resources:
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
             04_after_script:
               command: !Sub |
-                if [ -n ${AfterScriptLocation} ]; then
+                if [ -n '${AfterScriptLocation}' ]; then
                   aws s3 cp ${AfterScriptLocation} /tmp/after.sh
                   bash -x /tmp/after.sh
-                end
+                fi
             05_configure_cloudwatch_monitoring:
               command: !Sub |
                 mkdir /opt/cloudwatch_monitoring
