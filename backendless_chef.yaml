@@ -85,10 +85,6 @@ Parameters:
     Description: The URL to the push jobs server package which will be downloaded
     Type: String
     Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.6/el/7/opscode-push-jobs-server-2.2.6-1.el7.x86_64.rpm'
-  MainScriptLocation:
-    Description: The S3 bucket location of the main script which configures Chef Server
-    Type: String
-    Default: s3://aws-native-chef-server/files/main.sh
   BeforeScriptLocation:
     Description: The S3 bucket location of the script which runs before the Main script
     Type: String
@@ -182,7 +178,6 @@ Metadata:
           - ChefServerPackage
           - ChefManagePackage
           - PushJobsPackage
-          - MainScriptLocation
           - BeforeScriptLocation
           - AfterScriptLocation
       - Label:
@@ -671,7 +666,8 @@ Resources:
                 export BUCKET=${S3BUCKET}
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
-                aws s3 cp ${MainScriptLocation} /tmp/main.sh
+                # don't sign the request as a workaround to download object from a third party public bucket
+                aws s3 cp --no-sign-request s3://aws-native-chef-server/files/main.sh /tmp/main.sh
                 bash -x /tmp/main.sh
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
             04_after_script:
