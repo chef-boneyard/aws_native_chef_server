@@ -88,7 +88,7 @@ Parameters:
   BeforeScriptLocation:
     Description: The S3 bucket location of the script which runs before the Main script
     Type: String
-    Default: '' 
+    Default: ''
   AfterScriptLocation:
     Description: The S3 bucket location of the script which runs after the Main script
     Type: String
@@ -556,6 +556,7 @@ Resources:
       SecurityGroups:
       - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
       - !Ref SSHSecurityGroup
+      - !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -x
