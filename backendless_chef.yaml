@@ -68,7 +68,7 @@ Parameters:
     Default: 3
     Type: Number
   ElasticSearchReplicaCount:
-    Description: Replication factor for ElasticSearch shards (how many extra copies to keep)
+    Description: Replication factor for ElasticSearch sha vrds (how many extra copies to keep)
     Default: 2
     Type: Number
   ###############################################################################
@@ -93,6 +93,10 @@ Parameters:
     Description: The S3 bucket location of the script which runs after the Main script
     Type: String
     Default: ''
+  LocalScriptLocation:
+    Description: The local path to download setup scripts to
+    Type: String
+    Default: '/tmp'
   ###############################################################################
   # Security Settings
   LoadBalancerScheme:
@@ -106,10 +110,9 @@ Parameters:
     Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
     Default: ''
-  FrontendSecurityGroupId:
+  FrontendSecurityGroupIds:
     Description: Supply a security group for your chef frontends (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
-    Default: ''
   ChefServerAssociatePublicIpAddress:
     Description: Assign public IP addresses to the Chef Servers or not
     Type: String
@@ -201,7 +204,7 @@ Conditions:
   CreateLoadBalancerSecurityGroup:
     !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
   CreateFrontendSecurityGroup:
-    !Equals [ !Ref FrontendSecurityGroupId, '' ]
+    !Equals [ !Ref FrontendSecurityGroupIds, '' ]
 
 # Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 # NOTE: If you wish to replace this AMI with your own RHEL-ish variety, be prepared to
@@ -556,7 +559,7 @@ Resources:
       SecurityGroups:
       - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
       - !Ref SSHSecurityGroup
-      - !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+      - !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupIds]
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -x
@@ -659,8 +662,8 @@ Resources:
             02_before_script:
               command: !Sub |
                 if [ -n '${BeforeScriptLocation}' ]; then
-                    aws s3 cp ${BeforeScriptLocation} /tmp/before.sh
-                    bash -x /tmp/before.sh
+                    aws s3 cp ${BeforeScriptLocation} ${LocalScriptLocation}/before.sh
+                    bash -x ${LocalScriptLocation}/before.sh
                 fi
                 if [ -n '${ChefServerCustomConfig}' ]; then
                     aws s3 cp ${ChefServerCustomConfig} /etc/opscode/chef-server-custom.rb
@@ -675,14 +678,14 @@ Resources:
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
                 # don't sign the request as a workaround to download object from a third party public bucket
-                aws s3 cp --no-sign-request s3://aws-native-chef-server/files/main.sh /tmp/main.sh
-                bash -x /tmp/main.sh
+                aws s3 cp --no-sign-request s3://aws-native-chef-server/files/main.sh ${LocalScriptLocation}/main.sh
+                bash -x ${LocalScriptLocation}/main.sh
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
             04_after_script:
               command: !Sub |
                 if [ -n '${AfterScriptLocation}' ]; then
-                  aws s3 cp ${AfterScriptLocation} /tmp/after.sh
-                  bash -x /tmp/after.sh
+                  aws s3 cp ${AfterScriptLocation} ${LocalScriptLocation}/after.sh
+                  bash -x ${LocalScriptLocation}/after.sh
                 fi
             05_configure_cloudwatch_monitoring:
               command: !Sub |
