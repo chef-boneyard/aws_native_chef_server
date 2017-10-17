@@ -93,10 +93,6 @@ Parameters:
     Description: The S3 bucket location of the script which runs after the Main script
     Type: String
     Default: ''
-  LocalScriptLocation:
-    Description: The local path to download setup scripts to
-    Type: String
-    Default: '/tmp'
   ###############################################################################
   # Security Settings
   LoadBalancerScheme:
@@ -662,8 +658,8 @@ Resources:
             02_before_script:
               command: !Sub |
                 if [ -n '${BeforeScriptLocation}' ]; then
-                    aws s3 cp ${BeforeScriptLocation} ${LocalScriptLocation}/before.sh
-                    bash -x ${LocalScriptLocation}/before.sh
+                    aws s3 cp ${BeforeScriptLocation} /root/before.sh
+                    bash -x /root/before.sh
                 fi
                 if [ -n '${ChefServerCustomConfig}' ]; then
                     aws s3 cp ${ChefServerCustomConfig} /etc/opscode/chef-server-custom.rb
@@ -678,14 +674,14 @@ Resources:
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
                 # don't sign the request as a workaround to download object from a third party public bucket
-                aws s3 cp --no-sign-request s3://aws-native-chef-server/files/main.sh ${LocalScriptLocation}/main.sh
-                bash -x ${LocalScriptLocation}/main.sh
+                aws s3 cp --no-sign-request s3://aws-native-chef-server/files/main.sh /root/main.sh
+                bash -x /root/main.sh
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
             04_after_script:
               command: !Sub |
                 if [ -n '${AfterScriptLocation}' ]; then
-                  aws s3 cp ${AfterScriptLocation} ${LocalScriptLocation}/after.sh
-                  bash -x ${LocalScriptLocation}/after.sh
+                  aws s3 cp ${AfterScriptLocation} /root/after.sh
+                  bash -x /root/after.sh
                 fi
             05_configure_cloudwatch_monitoring:
               command: !Sub |
