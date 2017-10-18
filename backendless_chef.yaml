@@ -633,7 +633,7 @@ Resources:
                 dark_launch['actions'] = false
                 default_orgname '${ChefDefaultOrgName}'.empty? ? null : '${ChefDefaultOrgName}'
                 # special handling for Chef Automate URL and Token which might be empty strings
-                unless '${ChefAutomateServerUrl}'.empty? && ! '${ChefAutomateToken}'.empty?
+                unless '${ChefAutomateServerUrl}'.empty? || '${ChefAutomateToken}'.empty?
                   data_collector['root_url'] = '${ChefAutomateServerUrl}'
                   data_collector['token'] = '${ChefAutomateToken}'
                 end
