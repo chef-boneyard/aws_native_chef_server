@@ -13,8 +13,8 @@ Parameters:
     Default: 'arn:aws:iam::'
     Description: SSL Certficate ARN for SSL Certficate
     Type: String
-  SSHSecurityGroup:
-    Description: Select Security Group for SSH Access (must be within the specified VPC)
+  InboundAdminSecurityGroup:
+    Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
     Type: AWS::EC2::SecurityGroup::Id
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
@@ -110,9 +110,10 @@ Parameters:
     Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
     Default: ''
-  FrontendSecurityGroupIds:
+  FrontendSecurityGroupId:
     Description: Supply a security group for your chef frontends (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
+    Default: ''
   ChefServerAssociatePublicIpAddress:
     Description: Assign public IP addresses to the Chef Servers or not
     Type: String
@@ -162,7 +163,7 @@ Metadata:
           - VPC
           - ChefServerSubnets
           - SSLCertificateARN
-          - SSHSecurityGroup
+          - InboundAdminSecurityGroup
           - KeyName
           - DBPassword
           - ContactEmail
@@ -192,6 +193,8 @@ Metadata:
           default: "Security Settings"
         Parameters:
           - LoadBalancerScheme
+          - LoadBalancerSecurityGroupId
+          - FrontendSecurityGroupId
           - ChefServerAssociatePublicIpAddress
           - DisableSignup
           - ChefServerIamRole
@@ -205,7 +208,7 @@ Conditions:
   CreateLoadBalancerSecurityGroup:
     !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
   CreateFrontendSecurityGroup:
-    !Equals [ !Ref FrontendSecurityGroupIds, '' ]
+    !Equals [ !Ref FrontendSecurityGroupId, '' ]
 
 # Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 # NOTE: If you wish to replace this AMI with your own RHEL-ish variety, be prepared to
@@ -385,10 +388,6 @@ Resources:
         IpProtocol: tcp
         SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         ToPort: '443'
-      - FromPort: '22'
-        IpProtocol: tcp
-        SourceSecurityGroupId: !Ref SSHSecurityGroup
-        ToPort: '22'
       - FromPort: '10000'
         IpProtocol: tcp
         SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
@@ -399,6 +398,7 @@ Resources:
       VpcId: !Ref VPC
 
   LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Condition: CreateLoadBalancerSecurityGroup
     Properties:
       GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
@@ -424,7 +424,6 @@ Resources:
       - Key: Name
         Value: !Sub ${AWS::StackName}-ELB-SG
       VpcId: !Ref VPC
-    Type: AWS::EC2::SecurityGroup
 
   # A special ELB just for Push Jobs traffic (TCP ports 10000-10003)
   # Note: Push Jobs server isn't truly HA. Although job state is stored in the database,
@@ -558,9 +557,8 @@ Resources:
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       SecurityGroups:
-      - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-      - !Ref SSHSecurityGroup
-      - !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupIds]
+      - !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+      - !Ref InboundAdminSecurityGroup
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -x
@@ -719,7 +717,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+          SourceSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
