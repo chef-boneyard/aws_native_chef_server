@@ -39,6 +39,10 @@ Parameters:
     Description: The maximum number of additional frontend instances to launch
     Type: Number
     Default: 3
+  MinFrontendInstances:
+    Description: The minimum number of frontend instances to launch in addition to the Bootstrap Frontend
+    Type: Number
+    Default: 1
   LicenseCount:
     Default: '25'
     Description: Enter how many licenses you have purchased
@@ -168,6 +172,7 @@ Metadata:
         Parameters:
           - InstanceType
           - MaxFrontendInstances
+          - MinFrontendInstances
           - LicenseCount
           - DBInstanceClass
           - DBAllocatedStorage
@@ -260,7 +265,7 @@ Resources:
       TargetGroupARNs:
       - !Ref ChefTargetGroup
       MaxSize: !Sub '${MaxFrontendInstances}'
-      MinSize: '1'
+      MinSize: !Sub '${MinFrontendInstances}'
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-frontend
