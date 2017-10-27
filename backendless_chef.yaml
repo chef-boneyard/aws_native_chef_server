@@ -13,7 +13,7 @@ Parameters:
     Default: 'arn:aws:iam::'
     Description: SSL Certficate ARN for SSL Certficate
     Type: String
-  InboundAdminSecurityGroup:
+  InboundAdminSecurityGroupId:
     Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
     Type: AWS::EC2::SecurityGroup::Id
   KeyName:
@@ -172,7 +172,7 @@ Metadata:
           - VPC
           - ChefServerSubnets
           - SSLCertificateARN
-          - InboundAdminSecurityGroup
+          - InboundAdminSecurityGroupId
           - KeyName
           - DBPassword
           - ContactEmail
@@ -567,7 +567,7 @@ Resources:
       KeyName: !Ref KeyName
       SecurityGroups:
       - !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
-      - !Ref InboundAdminSecurityGroup
+      - !Ref InboundAdminSecurityGroupId
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -x

@@ -24,7 +24,7 @@
     "ParameterValue": "vpc-fa58989d"
   },
   {
-    "ParameterKey":   "InboundAdminSecurityGroup",
+    "ParameterKey":   "InboundAdminSecurityGroupId",
     "ParameterValue": "sg-bddcfbc4"
   },
   {
