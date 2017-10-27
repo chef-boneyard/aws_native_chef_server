@@ -90,11 +90,11 @@ Parameters:
     Type: String
     Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.6/el/7/opscode-push-jobs-server-2.2.6-1.el7.x86_64.rpm'
   BeforeScriptLocation:
-    Description: The S3 bucket location of the script which runs before the Main script
+    Description: The S3 location of the script which runs before the Main script
     Type: String
     Default: ''
   AfterScriptLocation:
-    Description: The S3 bucket location of the script which runs after the Main script
+    Description: The S3 location of the script which runs after the Main script
     Type: String
     Default: ''
   ###############################################################################
@@ -153,6 +153,15 @@ Parameters:
   ChefServerCustomConfig:
     Default: ''
     Type: String
+    Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb
+  Route53HostedZone:
+    Type: String
+    Default: ''
+    Description: Optionally supply a Route 53 Hosted Zone name (eg. mydomain.com.) for auto-creating a DNS record (Leave blank to disable)
+  Route53RecordName:
+    Type: String
+    Default: 'chef'
+    Description: Supply a DNS record name that will be prepended to the Route 53 Hosted Zone
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -209,8 +218,9 @@ Conditions:
     !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
   CreateFrontendSecurityGroup:
     !Equals [ !Ref FrontendSecurityGroupId, '' ]
+  CreateRoute53Record:
+    !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
 
-# Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
 # NOTE: If you wish to replace this AMI with your own RHEL-ish variety, be prepared to
 # - have the `aws` & `cfn-init` tools preinstalled
 # - Install and enable NTP
@@ -227,7 +237,6 @@ Mappings:
       AMI: ami-e689729e
 
 Resources:
-#########################################################################################
 # Frontend Autoscale Groups
 #########################################################################################
 # The first chef server we launch is the 'bootstrap' which needs to come up first and set schema before the rest
@@ -705,7 +714,6 @@ Resources:
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
 
-#########################################################################################
 # PostgreSQL DB
 #########################################################################################
   DBSecurityGroup:
@@ -754,7 +762,6 @@ Resources:
         - Key: X-Contact
           Value: !Ref ContactEmail
 
-#########################################################################################
 # ElasticSearch
 #########################################################################################
   ElasticsearchDomain:
@@ -766,13 +773,6 @@ Resources:
         ZoneAwarenessEnabled: false
         InstanceType: m3.large.elasticsearch
         DedicatedMasterEnabled: false
-        # DedicatedMasterType: t2.medium.elasticsearch
-        # DedicatedMasterCount: "3"
-      # EBSOptions:
-      #   EBSEnabled: true
-      #   Iops: !Ref DBIops
-      #   VolumeSize: !Ref DBAllocatedStorage
-      #   VolumeType: io1
       SnapshotOptions:
         AutomatedSnapshotStartHour: "0"
       AccessPolicies:
@@ -792,8 +792,20 @@ Resources:
       - Key: X-Contact
         Value: !Ref ContactEmail
 
-
+# Route 53 Record
 #########################################################################################
+  ChefLBDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateRoute53Record
+    Properties:
+      HostedZoneName: !Ref Route53HostedZone
+      Comment: !Sub Created by Cloudformation ${AWS::StackName}
+      Name: !Sub ${Route53RecordName}.${Route53HostedZone}
+      Type: CNAME
+      TTL: 900
+      ResourceRecords:
+      - !GetAtt ChefALB.DNSName
+
 # Monitoring
 #########################################################################################
   AlertNotificationTopic:
