@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v3.0.0
+Description: AWS Native Chef Server v3.1.0
 
 Parameters:
   # Required Parameters
@@ -32,9 +32,14 @@ Parameters:
   ###############################################################################
   # Performance Settings
   InstanceType:
-    ConstraintDescription: must be a valid EC2 instance type.
-    Default: c4.large
+    ConstraintDescription: EC2 Instance type for Chef Server Frontends (high-CPU recommended)
+    Default: c5.large
     Type: String
+    AllowedValues: [t2.small, t2.medium, t2.large, t2.xlarge, t2.2xlarge,
+      m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge, m4.16xlarge,
+      m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
+      c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge,
+      c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
   MaxFrontendInstances:
     Description: The maximum number of additional frontend instances to launch
     Type: Number
@@ -48,9 +53,12 @@ Parameters:
     Description: Enter how many licenses you have purchased
     Type: String
   DBInstanceClass:
-    Description: Storage size allocated for the database
+    Description: EC2 Instance type for RDS DBs (EBS Optimized instances recommended)
     Default: 'db.m4.large'
     Type: String
+    AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
+      db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
+      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge]
   DBAllocatedStorage:
     Description: Storage size allocated for the database
     Default: '100'
@@ -59,6 +67,15 @@ Parameters:
     Description: IOPS allocated to the storage (storage size * 10)
     Default: '1000'
     Type: String
+  ElasticSearchInstanceType:
+    Description: The Instance type to use for ElasticSearch instances (Note, must have ephemeral storage, the instance type affects the total amount of elasticsearch storage. i3 strongly recommended)
+    Type: String
+    Default: 'i3.large.elasticsearch'
+    AllowedValues: [
+      'i3.large.elasticsearch', 'i3.xlarge.elasticsearch', 'i3.2xlarge.elasticsearch', 'i3.4xlarge.elasticsearch', 'i3.8xlarge.elasticsearch', 'i3.16xlarge.elasticsearch',
+      'i2.xlarge.elasticsearch', 'i2.2xlarge.elasticsearch',
+      'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
+      'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ElasticSearchVersion:
     Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.3. (5.3 recommended for new installs)
     Type: String
@@ -80,7 +97,7 @@ Parameters:
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.16.14/el/7/chef-server-core-12.16.14-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.17.15/el/7/chef-server-core-12.17.15-1.el7.x86_64.rpm'
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
@@ -187,6 +204,7 @@ Metadata:
           - DBInstanceClass
           - DBAllocatedStorage
           - DBIops
+          - ElasticSearchInstanceType
           - ElasticSearchVersion
           - ElasticSearchShardCount
           - ElasticSearchReplicaCount
@@ -228,13 +246,13 @@ Conditions:
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      AMI: ami-8c1be5f6
+      AMI: ami-55ef662f
     us-east-2:
-      AMI: ami-c5062ba0
+      AMI: ami-15e9c770
     us-west-1:
-      AMI: ami-02eada62
+      AMI: ami-a51f27c5
     us-west-2:
-      AMI: ami-e689729e
+      AMI: ami-bf4193c7
 
 Resources:
 # Frontend Autoscale Groups
@@ -719,7 +737,7 @@ Resources:
   DBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Frontend Access"
+      GroupDescription: "RDS Frontend Access"
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -746,7 +764,7 @@ Resources:
       StorageType: io1
       MultiAZ: true
       Engine: postgres
-      EngineVersion: 9.6.3
+      EngineVersion: 9.6.5
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
@@ -764,6 +782,17 @@ Resources:
 
 # ElasticSearch
 #########################################################################################
+  ESSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Elasticsearch Frontend Access"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
     Properties:
@@ -771,7 +800,7 @@ Resources:
       ElasticsearchClusterConfig:
         InstanceCount: !Sub ${ElasticSearchShardCount}
         ZoneAwarenessEnabled: false
-        InstanceType: m3.large.elasticsearch
+        InstanceType: !Ref ElasticSearchInstanceType
         DedicatedMasterEnabled: false
       SnapshotOptions:
         AutomatedSnapshotStartHour: "0"
@@ -782,6 +811,11 @@ Resources:
             Principal:
               AWS: !If [CreateChefServerIamRole, !GetAtt ChefRole.Arn, !Sub "arn:aws:iam::${AWS::AccountId}:role/${ChefServerIamRole}"]
             Action: "es:*"
+      VPCOptions:
+        SubnetIds:
+          - !Select [ 0, !Ref ChefServerSubnets ]
+        SecurityGroupIds:
+          - !Ref ESSecurityGroup
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
       Tags:

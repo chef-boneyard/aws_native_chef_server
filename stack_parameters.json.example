@@ -41,11 +41,11 @@
   },
   {
     "ParameterKey":   "InstanceType",
-    "ParameterValue": "c4.large"
+    "ParameterValue": "c5.xlarge"
   },
   {
     "ParameterKey":   "DBInstanceClass",
-    "ParameterValue": "db.m4.large"
+    "ParameterValue": "db.m4.xlarge"
   },
   {
     "ParameterKey":   "ContactEmail",
