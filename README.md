@@ -30,9 +30,10 @@ You can launch this stack with the push of a button:
 However, the most repeatable and least error-prone way to launch this stack is to use the `aws` command-line. First copy file `stack_parameters.json.example` to `stack_parameters.json`, make the necessary changes, then run this command:
 
 ```bash
+MYBUCKET=aws-native-chef-server
 aws cloudformation create-stack \
   --stack-name irving-backendless-chef \
-  --template-body file://backendless_chef.yaml \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/backendless_chef.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
   --parameters file://stack_parameters.json
@@ -43,10 +44,12 @@ aws cloudformation create-stack \
 If you've made changes to the template content or parameters and you wish to update a running stack:
 
 ```bash
-aws cloudformation validate-template --template-body file://backendless_chef.yaml &&
+MYBUCKET=aws-native-chef-server
+aws s3 cp backendless_chef.yaml s3://$MYBUCKET/
+aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/backendless_chef.yaml
 aws cloudformation update-stack \
-  --stack-name irving-backendless-chef \
-  --template-body file://backendless_chef.yaml \
+  --stack-name irving-backendless-chef2 \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/backendless_chef.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters file://stack_parameters.json
 ```

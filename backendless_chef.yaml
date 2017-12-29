@@ -1,63 +1,64 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v2.5.0
+Description: AWS Native Chef Server v3.1.0
 
 Parameters:
-  ChefServerPackage:
-    Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
-    Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.16.14/el/7/chef-server-core-12.16.14-1.el7.x86_64.rpm'
-  ChefManagePackage:
-    Description: The URL to the chef-manage EL7 package which will be downloaded
-    Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.8/el/7/chef-manage-2.5.8-1.el7.x86_64.rpm'
-  PushJobsPackage:
-    Description: The URL to the push jobs server package which will be downloaded
-    Type: String
-    Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.6/el/7/opscode-push-jobs-server-2.2.6-1.el7.x86_64.rpm'
-  FilesLocation:
-    Description: The base URL for script and config files needed by this template (include a trailing /)
-    Type: String
-    Default: 'https://raw.githubusercontent.com/chef-customers/aws_native_chef_server/master/files/'
-  MaxFrontendInstances:
-    Description: The maximum number of additional frontend instances to launch
-    Type: Number
-    Default: 3
-  LoadBalancerSubnets:
-    Description: Provide a list of Subnet IDs for the ELB
-    Type: List<AWS::EC2::Subnet::Id>
-  LoadBalancerScheme:
-    Description: Network Scheme for the ELB
-    Type: String
-    Default: internet-facing
-    AllowedValues:
-    - 'internet-facing'
-    - 'internal'
+  # Required Parameters
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
   ChefServerSubnets:
-    Description: Provide a list of Subnet IDs for the Chef Servers
+    Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
     Type: List<AWS::EC2::Subnet::Id>
-  ChefServerAssociatePublicIpAddress:
-    Description: Assign public IP addresses to the Chef Servers or not
+  SSLCertificateARN:
+    Default: 'arn:aws:iam::'
+    Description: SSL Certficate ARN for SSL Certficate
     Type: String
-    Default: true
-    AllowedValues:
-    - 'true'
-    - 'false'
+  InboundAdminSecurityGroupId:
+    Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
+    Type: AWS::EC2::SecurityGroup::Id
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
   DBPassword:
     Description: Enter DB Password
     NoEcho: true
     Type: String
-  DBPort:
-    Default: '5432'
-    Description: Enter DB Port
+  ContactEmail:
+    Description: Contact email for Cloudwatch notifications and instance tagging
     Type: String
-  DBUser:
-    Description: Enter DB User Name
-    Default: 'chefadmin'
+  ContactDept:
+    Description: Contact department for billing purposes
     Type: String
-  DBName:
-    Description: Enter DB Name
-    Default: 'chef'
+  ###############################################################################
+  # Performance Settings
+  InstanceType:
+    ConstraintDescription: EC2 Instance type for Chef Server Frontends (high-CPU recommended)
+    Default: c5.large
     Type: String
+    AllowedValues: [t2.small, t2.medium, t2.large, t2.xlarge, t2.2xlarge,
+      m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge, m4.16xlarge,
+      m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
+      c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge,
+      c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
+  MaxFrontendInstances:
+    Description: The maximum number of additional frontend instances to launch
+    Type: Number
+    Default: 3
+  MinFrontendInstances:
+    Description: The minimum number of frontend instances to launch in addition to the Bootstrap Frontend
+    Type: Number
+    Default: 1
+  LicenseCount:
+    Default: '25'
+    Description: Enter how many licenses you have purchased
+    Type: String
+  DBInstanceClass:
+    Description: EC2 Instance type for RDS DBs (EBS Optimized instances recommended)
+    Default: 'db.m4.large'
+    Type: String
+    AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
+      db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
+      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge]
   DBAllocatedStorage:
     Description: Storage size allocated for the database
     Default: '100'
@@ -66,18 +67,19 @@ Parameters:
     Description: IOPS allocated to the storage (storage size * 10)
     Default: '1000'
     Type: String
-  DBInstanceClass:
-    Description: Storage size allocated for the database
-    Default: 'db.m4.large'
+  ElasticSearchInstanceType:
+    Description: The Instance type to use for ElasticSearch instances (Note, must have ephemeral storage, the instance type affects the total amount of elasticsearch storage. i3 strongly recommended)
     Type: String
-  DBSubnetGroupArn:
-    Description: Provide a DB Subnet Group ARN (or leave blank to have one created for you)
-    Default: ''
-    Type: String
+    Default: 'i3.large.elasticsearch'
+    AllowedValues: [
+      'i3.large.elasticsearch', 'i3.xlarge.elasticsearch', 'i3.2xlarge.elasticsearch', 'i3.4xlarge.elasticsearch', 'i3.8xlarge.elasticsearch', 'i3.16xlarge.elasticsearch',
+      'i2.xlarge.elasticsearch', 'i2.2xlarge.elasticsearch',
+      'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
+      'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ElasticSearchVersion:
     Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.3. (5.3 recommended for new installs)
     Type: String
-    Default: '2.3'
+    Default: '5.5'
     AllowedValues:
     - '2.3'
     - '5.3'
@@ -87,30 +89,55 @@ Parameters:
     Default: 3
     Type: Number
   ElasticSearchReplicaCount:
-    Description: Replication factor for ElasticSearch shards (how many extra copies to keep)
+    Description: Replication factor for ElasticSearch sha vrds (how many extra copies to keep)
     Default: 2
     Type: Number
-  InstanceType:
-    ConstraintDescription: must be a valid EC2 instance type.
-    Default: c4.large
+  ###############################################################################
+  # Package Versions & Locations
+  ChefServerPackage:
+    Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
-  KeyName:
-    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
-    Type: AWS::EC2::KeyPair::KeyName
-  LicenseCount:
-    Default: '25'
-    Description: Enter how many licenses you have purchased
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.17.15/el/7/chef-server-core-12.17.15-1.el7.x86_64.rpm'
+  ChefManagePackage:
+    Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
-  SSHSecurityGroup:
-    Description: Select Security Group for SSH Access
-    Type: AWS::EC2::SecurityGroup::Id
-  SSLCertificateARN:
-    Default: 'arn:aws:iam::'
-    Description: SSL Certficate ARN for SSL Certficate
+    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.8/el/7/chef-manage-2.5.8-1.el7.x86_64.rpm'
+  PushJobsPackage:
+    Description: The URL to the push jobs server package which will be downloaded
     Type: String
-  VPC:
-    Description: Choose VPC to use
-    Type: AWS::EC2::VPC::Id
+    Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.6/el/7/opscode-push-jobs-server-2.2.6-1.el7.x86_64.rpm'
+  BeforeScriptLocation:
+    Description: The S3 location of the script which runs before the Main script
+    Type: String
+    Default: ''
+  AfterScriptLocation:
+    Description: The S3 location of the script which runs after the Main script
+    Type: String
+    Default: ''
+  ###############################################################################
+  # Security Settings
+  LoadBalancerScheme:
+    Description: Network Scheme for the ELB
+    Type: String
+    Default: internet-facing
+    AllowedValues:
+    - 'internet-facing'
+    - 'internal'
+  LoadBalancerSecurityGroupId:
+    Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
+    Type: String
+    Default: ''
+  FrontendSecurityGroupId:
+    Description: Supply a security group for your chef frontends (leave blank to have it created for you). Using the default security group is recommended.
+    Type: String
+    Default: ''
+  ChefServerAssociatePublicIpAddress:
+    Description: Assign public IP addresses to the Chef Servers or not
+    Type: String
+    Default: true
+    AllowedValues:
+    - 'true'
+    - 'false'
   DisableSignup:
     AllowedValues:
     - 'true'
@@ -126,39 +153,108 @@ Parameters:
     Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
     Type: String
     Default: ''
-  ContactDept:
-    Description: Contact department for billing purposes
+  ###############################################################################
+  # Other Settings
+  ChefAutomateServerUrl:
+    Description: The URL of the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
     Type: String
-  ContactEmail:
-    Description: Contact email for Cloudwatch notifications and instance tagging
+    Default: ''
+  ChefAutomateToken:
+    Description: The secret token used to communicate with the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
     Type: String
+    Default: ''
   ChefDefaultOrgName:
     Default: ''
     Description: Default Chef organization name (typically only used when migrating from Chef Server 11, otherwise leave blank)
     Type: String
+  ChefServerCustomConfig:
+    Default: ''
+    Type: String
+    Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb
+  Route53HostedZone:
+    Type: String
+    Default: ''
+    Description: Optionally supply a Route 53 Hosted Zone name (eg. mydomain.com.) for auto-creating a DNS record (Leave blank to disable)
+  Route53RecordName:
+    Type: String
+    Default: 'chef'
+    Description: Supply a DNS record name that will be prepended to the Route 53 Hosted Zone
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Required Parameters"
+        Parameters:
+          - VPC
+          - ChefServerSubnets
+          - SSLCertificateARN
+          - InboundAdminSecurityGroupId
+          - KeyName
+          - DBPassword
+          - ContactEmail
+          - ContactDept
+      - Label:
+          default: "Performance Settings"
+        Parameters:
+          - InstanceType
+          - MaxFrontendInstances
+          - MinFrontendInstances
+          - LicenseCount
+          - DBInstanceClass
+          - DBAllocatedStorage
+          - DBIops
+          - ElasticSearchInstanceType
+          - ElasticSearchVersion
+          - ElasticSearchShardCount
+          - ElasticSearchReplicaCount
+      - Label:
+          default: "Package Versions & Locations"
+        Parameters:
+          - ChefServerPackage
+          - ChefManagePackage
+          - PushJobsPackage
+          - BeforeScriptLocation
+          - AfterScriptLocation
+      - Label:
+          default: "Security Settings"
+        Parameters:
+          - LoadBalancerScheme
+          - LoadBalancerSecurityGroupId
+          - FrontendSecurityGroupId
+          - ChefServerAssociatePublicIpAddress
+          - DisableSignup
+          - ChefServerIamRole
+          - ChefSecretsBucket
 
 Conditions:
   CreateChefServerIamRole:
     !Equals [ !Ref ChefServerIamRole, '' ]
   CreateChefSecretsBucket:
     !Equals [ !Ref ChefSecretsBucket, '' ]
-  CreateDBSubnetGroup:
-    !Equals [ !Ref DBSubnetGroupArn, '' ]
+  CreateLoadBalancerSecurityGroup:
+    !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
+  CreateFrontendSecurityGroup:
+    !Equals [ !Ref FrontendSecurityGroupId, '' ]
+  CreateRoute53Record:
+    !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
 
-# Should be the latest Amazon Linux AMI from: https://aws.amazon.com/amazon-linux-ami/
+# NOTE: If you wish to replace this AMI with your own RHEL-ish variety, be prepared to
+# - have the `aws` & `cfn-init` tools preinstalled
+# - Install and enable NTP
+# - Support upstart as the init system, or else rewrite the below aws-signing-proxy service defitinion into systemd
 Mappings:
   AWSRegion2AMI:
     us-east-1:
-      AMI: ami-8c1be5f6
+      AMI: ami-55ef662f
     us-east-2:
-      AMI: ami-c5062ba0
+      AMI: ami-15e9c770
     us-west-1:
-      AMI: ami-02eada62
+      AMI: ami-a51f27c5
     us-west-2:
-      AMI: ami-e689729e
+      AMI: ami-bf4193c7
 
 Resources:
-#########################################################################################
 # Frontend Autoscale Groups
 #########################################################################################
 # The first chef server we launch is the 'bootstrap' which needs to come up first and set schema before the rest
@@ -199,7 +295,7 @@ Resources:
       TargetGroupARNs:
       - !Ref ChefTargetGroup
       MaxSize: !Sub '${MaxFrontendInstances}'
-      MinSize: '1'
+      MinSize: !Sub '${MinFrontendInstances}'
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-frontend
@@ -302,6 +398,7 @@ Resources:
 
   FrontendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateFrontendSecurityGroup
     Properties:
       GroupDescription: Setup Ingress/Egress for Chef Frontend
       SecurityGroupEgress:
@@ -312,19 +409,15 @@ Resources:
       SecurityGroupIngress:
       - FromPort: '80'
         IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         ToPort: '80'
       - FromPort: '443'
         IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         ToPort: '443'
-      - FromPort: '22'
-        IpProtocol: tcp
-        SourceSecurityGroupId: !Ref SSHSecurityGroup
-        ToPort: '22'
       - FromPort: '10000'
         IpProtocol: tcp
-        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         ToPort: '10003'
       Tags:
       - Key: Name
@@ -332,6 +425,8 @@ Resources:
       VpcId: !Ref VPC
 
   LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: CreateLoadBalancerSecurityGroup
     Properties:
       GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
       SecurityGroupEgress:
@@ -356,7 +451,6 @@ Resources:
       - Key: Name
         Value: !Sub ${AWS::StackName}-ELB-SG
       VpcId: !Ref VPC
-    Type: AWS::EC2::SecurityGroup
 
   # A special ELB just for Push Jobs traffic (TCP ports 10000-10003)
   # Note: Push Jobs server isn't truly HA. Although job state is stored in the database,
@@ -367,8 +461,8 @@ Resources:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
     Properties:
       SecurityGroups:
-        - !Ref LoadBalancerSecurityGroup
-      Subnets: !Ref LoadBalancerSubnets
+        - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+      Subnets: !Ref ChefServerSubnets
       Scheme: !Ref LoadBalancerScheme
       Listeners:
         - LoadBalancerPort: '10000'
@@ -393,8 +487,8 @@ Resources:
     Properties:
       Name: !Sub ${AWS::StackName}-lb
       SecurityGroups:
-        - !Ref LoadBalancerSecurityGroup
-      Subnets: !Ref LoadBalancerSubnets
+        - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+      Subnets: !Ref ChefServerSubnets
       # IpAddressType: dualstack
       Scheme: !Ref LoadBalancerScheme
       Tags:
@@ -490,8 +584,8 @@ Resources:
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       SecurityGroups:
-      - !Ref FrontendSecurityGroup
-      - !Ref SSHSecurityGroup
+      - !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+      - !Ref InboundAdminSecurityGroupId
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -x
@@ -535,7 +629,7 @@ Resources:
                 license['nodes'] = ${LicenseCount}
                 postgresql['external'] = true
                 postgresql['vip'] = '${DBPostgres.Endpoint.Address}'
-                postgresql['db_superuser'] = '${DBUser}'
+                postgresql['db_superuser'] = 'chefadmin'
                 postgresql['db_superuser_password'] = '${DBPassword}'
                 oc_chef_authz['http_init_count'] = 100
                 oc_chef_authz['http_queue_max'] = 200
@@ -568,8 +662,13 @@ Resources:
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
                 default_orgname '${ChefDefaultOrgName}'.empty? ? null : '${ChefDefaultOrgName}'
+                # special handling for Chef Automate URL and Token which might be empty strings
+                unless '${ChefAutomateServerUrl}'.empty? || '${ChefAutomateToken}'.empty?
+                  data_collector['root_url'] = '${ChefAutomateServerUrl}'
+                  data_collector['token'] = '${ChefAutomateToken}'
+                end
             /usr/local/bin/aws-signing-proxy:
-              source: https://github.com/nsdavidson/aws-signing-proxy/releases/download/v0.3.0/aws-signing-proxy
+              source: https://github.com/chef-customers/aws-signing-proxy/releases/download/v0.3.0/aws-signing-proxy
               mode: '000755'
             /etc/init/aws-signing-proxy.conf:
               content: !Sub |
@@ -586,17 +685,35 @@ Resources:
           commands:
             01_start_es_proxy:
               command: initctl start aws-signing-proxy
-            02_configure_chef_server:
+            02_before_script:
+              command: !Sub |
+                if [ -n '${BeforeScriptLocation}' ]; then
+                    aws s3 cp ${BeforeScriptLocation} /root/before.sh
+                    bash -x /root/before.sh
+                fi
+                if [ -n '${ChefServerCustomConfig}' ]; then
+                    aws s3 cp ${ChefServerCustomConfig} /etc/opscode/chef-server-custom.rb
+                    echo "# Appended from chef-server-custom.rb" >> /etc/opscode/chef-server.rb
+                    cat /etc/opscode/chef-server-custom.rb >> /etc/opscode/chef-server.rb
+                fi
+            03_configure_chef_server:
               command: !Sub
               - |
                 export STACKNAME=${AWS::StackName}
                 export BUCKET=${S3BUCKET}
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
-                curl -s ${FilesLocation}main.sh | bash -x
+                # don't sign the request as a workaround to download object from a third party public bucket
+                aws s3 cp --no-sign-request s3://aws-native-chef-server/files/main.sh /root/main.sh
+                bash -x /root/main.sh
               - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
-
-            03_configure_cloudwatch_monitoring:
+            04_after_script:
+              command: !Sub |
+                if [ -n '${AfterScriptLocation}' ]; then
+                  aws s3 cp ${AfterScriptLocation} /root/after.sh
+                  bash -x /root/after.sh
+                fi
+            05_configure_cloudwatch_monitoring:
               command: !Sub |
                 mkdir /opt/cloudwatch_monitoring
                 cd /opt/cloudwatch_monitoring
@@ -615,22 +732,20 @@ Resources:
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
 
-#########################################################################################
 # PostgreSQL DB
 #########################################################################################
   DBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Frontend Access"
+      GroupDescription: "RDS Frontend Access"
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: !Ref DBPort
-          ToPort: !Ref DBPort
-          SourceSecurityGroupId: !Ref FrontendSecurityGroup
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
 
   DBSubnetGroup:
-    Condition: CreateDBSubnetGroup
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: RDS DB subnet group
@@ -640,20 +755,20 @@ Resources:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: "Snapshot"
     Properties:
-      DBName: !Ref DBName
+      DBName: chef
       AllocatedStorage: !Ref DBAllocatedStorage
       Iops: !Ref DBIops
-      MasterUsername: !Ref DBUser
+      MasterUsername: chefadmin
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: !Ref DBInstanceClass
       StorageType: io1
       MultiAZ: true
       Engine: postgres
-      EngineVersion: 9.6.3
+      EngineVersion: 9.6.5
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
-      DBSubnetGroupName: !If [CreateDBSubnetGroup, !Ref DBSubnetGroup, !Ref DBSubnetGroupArn]
+      DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref DBSecurityGroup
       PubliclyAccessible: false
@@ -665,9 +780,19 @@ Resources:
         - Key: X-Contact
           Value: !Ref ContactEmail
 
-#########################################################################################
 # ElasticSearch
 #########################################################################################
+  ESSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Elasticsearch Frontend Access"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
     Properties:
@@ -675,15 +800,8 @@ Resources:
       ElasticsearchClusterConfig:
         InstanceCount: !Sub ${ElasticSearchShardCount}
         ZoneAwarenessEnabled: false
-        InstanceType: m3.large.elasticsearch
+        InstanceType: !Ref ElasticSearchInstanceType
         DedicatedMasterEnabled: false
-        # DedicatedMasterType: t2.medium.elasticsearch
-        # DedicatedMasterCount: "3"
-      # EBSOptions:
-      #   EBSEnabled: true
-      #   Iops: !Ref DBIops
-      #   VolumeSize: !Ref DBAllocatedStorage
-      #   VolumeType: io1
       SnapshotOptions:
         AutomatedSnapshotStartHour: "0"
       AccessPolicies:
@@ -693,6 +811,11 @@ Resources:
             Principal:
               AWS: !If [CreateChefServerIamRole, !GetAtt ChefRole.Arn, !Sub "arn:aws:iam::${AWS::AccountId}:role/${ChefServerIamRole}"]
             Action: "es:*"
+      VPCOptions:
+        SubnetIds:
+          - !Select [ 0, !Ref ChefServerSubnets ]
+        SecurityGroupIds:
+          - !Ref ESSecurityGroup
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
       Tags:
@@ -703,8 +826,20 @@ Resources:
       - Key: X-Contact
         Value: !Ref ContactEmail
 
-
+# Route 53 Record
 #########################################################################################
+  ChefLBDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateRoute53Record
+    Properties:
+      HostedZoneName: !Ref Route53HostedZone
+      Comment: !Sub Created by Cloudformation ${AWS::StackName}
+      Name: !Sub ${Route53RecordName}.${Route53HostedZone}
+      Type: CNAME
+      TTL: 900
+      ResourceRecords:
+      - !GetAtt ChefALB.DNSName
+
 # Monitoring
 #########################################################################################
   AlertNotificationTopic:

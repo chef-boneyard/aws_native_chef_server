@@ -1,7 +1,7 @@
 [
   {
     "ParameterKey":   "ElasticSearchVersion",
-    "ParameterValue": "5.3"
+    "ParameterValue": "5.5"
   },
   {
     "ParameterKey":   "SSLCertificateARN",
@@ -10,10 +10,6 @@
   {
     "ParameterKey":   "LicenseCount",
     "ParameterValue": "999999"
-  },
-  {
-    "ParameterKey":   "DBUser",
-    "ParameterValue": "chefadmin"
   },
   {
     "ParameterKey":   "DBPassword",
@@ -28,12 +24,8 @@
     "ParameterValue": "vpc-fa58989d"
   },
   {
-    "ParameterKey":   "SSHSecurityGroup",
+    "ParameterKey":   "InboundAdminSecurityGroupId",
     "ParameterValue": "sg-bddcfbc4"
-  },
-  {
-    "ParameterKey":   "LoadBalancerSubnets",
-    "ParameterValue": "subnet-63c62b04,subnet-dc1611aa,subnet-0247365a"
   },
   {
     "ParameterKey":   "LoadBalancerScheme",
@@ -49,11 +41,11 @@
   },
   {
     "ParameterKey":   "InstanceType",
-    "ParameterValue": "c4.large"
+    "ParameterValue": "c5.xlarge"
   },
   {
     "ParameterKey":   "DBInstanceClass",
-    "ParameterValue": "db.m4.large"
+    "ParameterValue": "db.m4.xlarge"
   },
   {
     "ParameterKey":   "ContactEmail",
@@ -62,9 +54,5 @@
   {
     "ParameterKey":   "ContactDept",
     "ParameterValue": "success"
-  },
-  {
-    "ParameterKey":   "ChefDefaultOrgName",
-    "ParameterValue": ""
   }
 ]
