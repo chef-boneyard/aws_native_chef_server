@@ -4,7 +4,8 @@ addons:
     - awscli
 install: true
 script:
-- aws cloudformation validate-template --template-body file://backendless_chef.yaml
+- aws s3 cp backendless_chef.yaml s3://aws-native-chef-server/backendless_chef_test.yaml
+- aws cloudformation validate-template --template-url https://s3.amazonaws.com/aws-native-chef-server/backendless_chef_test.yaml
 deploy:
   provider: s3
   access_key_id:
