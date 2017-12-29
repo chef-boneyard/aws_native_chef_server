@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v3.1.0
+Description: AWS Native Chef Server v3.1.1
 
 Parameters:
   # Required Parameters
@@ -32,7 +32,7 @@ Parameters:
   ###############################################################################
   # Performance Settings
   InstanceType:
-    ConstraintDescription: EC2 Instance type for Chef Server Frontends (high-CPU recommended)
+    Description: EC2 Instance type for Chef Server Frontends (high-CPU recommended)
     Default: c5.large
     Type: String
     AllowedValues: [t2.small, t2.medium, t2.large, t2.xlarge, t2.2xlarge,
@@ -107,11 +107,11 @@ Parameters:
     Type: String
     Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.6/el/7/opscode-push-jobs-server-2.2.6-1.el7.x86_64.rpm'
   BeforeScriptLocation:
-    Description: The S3 location of the script which runs before the Main script
+    Description: The S3 location of the script which runs before the Main script (optional)
     Type: String
     Default: ''
   AfterScriptLocation:
-    Description: The S3 location of the script which runs after the Main script
+    Description: The S3 location of the script which runs after the Main script (optional)
     Type: String
     Default: ''
   ###############################################################################
@@ -170,11 +170,11 @@ Parameters:
   ChefServerCustomConfig:
     Default: ''
     Type: String
-    Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb
+    Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb (optional)
   Route53HostedZone:
     Type: String
     Default: ''
-    Description: Optionally supply a Route 53 Hosted Zone name (eg. mydomain.com.) for auto-creating a DNS record (Leave blank to disable)
+    Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com.) for auto-creating a DNS record. Must end in a dot. (Leave blank to disable)
   Route53RecordName:
     Type: String
     Default: 'chef'
