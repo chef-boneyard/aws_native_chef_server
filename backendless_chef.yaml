@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v3.1.1
+Description: AWS Native Chef Server v3.1.2
 
 Parameters:
   # Required Parameters
@@ -245,14 +245,22 @@ Conditions:
 # - Support upstart as the init system, or else rewrite the below aws-signing-proxy service defitinion into systemd
 Mappings:
   AWSRegion2AMI:
+    ca-central-1:
+      AMI: ami-61f97c05
+    eu-west-1:
+      AMI: ami-e487179d
+    eu-west-2:
+      AMI: ami-51809835
+    eu-west-3:
+      AMI: ami-fe03b483
     us-east-1:
-      AMI: ami-55ef662f
+      AMI: ami-cb9ec1b1
     us-east-2:
-      AMI: ami-15e9c770
+      AMI: ami-caaf84af
     us-west-1:
-      AMI: ami-a51f27c5
+      AMI: ami-95eeeef5
     us-west-2:
-      AMI: ami-bf4193c7
+      AMI: ami-32cf7b4a
 
 Resources:
 # Frontend Autoscale Groups
