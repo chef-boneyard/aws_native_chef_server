@@ -104,6 +104,21 @@ Yes, it is significantly more robust and easier to operate.
 
 Contributions are welcomed!
 
+# Developer notes
+
+## RegionMap
+To update the region map execute the following lines in your terminal and then paste the results into the `AWSRegion2AMI` mappings section of the template:
+
+```bash
+AMAZON_RELEASE='amzn-ami-hvm-2017.09.1.20180115-x86_64-gp2'
+regions=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
+for region in $regions; do
+  ami=$(aws --region $region ec2 describe-images \
+  --filters "Name=name,Values=${AMAZON_RELEASE}" \
+  --query "Images[0].ImageId" --output "text")
+  printf "    $region:\n      AMI: $ami\n"; done
+```
+
 # Credits
 
 This project was inspired by the work of [Levi Smith](https://github.com/TheFynx) of the Hearst Automation Team and published at [HearstAT/cfn_backendless_chef](https://github.com/HearstAT/cfn_backendless_chef).  Thanks Levi!
