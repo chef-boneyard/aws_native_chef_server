@@ -48,7 +48,7 @@ MYBUCKET=aws-native-chef-server
 aws s3 cp backendless_chef.yaml s3://$MYBUCKET/
 aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/backendless_chef.yaml
 aws cloudformation update-stack \
-  --stack-name irving-backendless-chef2 \
+  --stack-name irving-backendless-chef \
   --template-url https://s3.amazonaws.com/$MYBUCKET/backendless_chef.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters file://stack_parameters.json
