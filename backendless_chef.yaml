@@ -889,8 +889,10 @@ Resources:
                     - /var/log/opscode/opscode-erchef/requests.log.*
                     - /var/log/chef-manage/*/current
                 output.elasticsearch:
-                  # Array of hosts to connect to.
                   hosts: ["localhost:9200"]
+                setup.kibana:
+                  host: "http://localhost:9200/_plugin/kibana/"
+                dashboards.enabled: true
               mode: '000644'
               owner: root
               group: root
