@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v3.2.0
+Description: AWS Native Chef Server v3.3.0
 
 Parameters:
   # Required Parameters
@@ -299,6 +299,13 @@ Resources:
       - !Ref ChefPJELB
       MaxSize: '1'
       MinSize: '1'
+      NotificationConfigurations:
+      - TopicARN: !Ref AlertNotificationTopic
+        NotificationTypes:
+        - autoscaling:EC2_INSTANCE_LAUNCH
+        - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
+        - autoscaling:EC2_INSTANCE_TERMINATE
+        - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-bootstrap-frontend
@@ -323,6 +330,13 @@ Resources:
       - !Ref ChefTargetGroup
       MaxSize: !Sub '${MaxFrontendInstances}'
       MinSize: !Sub '${MinFrontendInstances}'
+      NotificationConfigurations:
+      - TopicARN: !Ref AlertNotificationTopic
+        NotificationTypes:
+        - autoscaling:EC2_INSTANCE_LAUNCH
+        - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
+        - autoscaling:EC2_INSTANCE_TERMINATE
+        - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-frontend
@@ -964,6 +978,14 @@ Resources:
           Value: !Ref ContactDept
         - Key: X-Contact
           Value: !Ref ContactEmail
+
+  RdsEventSubscription:
+    Type: AWS::RDS::EventSubscription
+    Properties:
+      SnsTopicArn: !Ref AlertNotificationTopic
+      SourceIds:
+        - !Ref DBPostgres
+      SourceType: db-instance
 
 # ElasticSearch
 #########################################################################################
