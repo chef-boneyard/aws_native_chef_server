@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v3.1.3
+Description: AWS Native Chef Server v3.2.0
 
 Parameters:
   # Required Parameters
@@ -179,6 +179,11 @@ Parameters:
     Type: String
     Default: 'chef'
     Description: Supply a DNS record name that will be prepended to the Route 53 Hosted Zone
+  LogsRetentionInDays:
+    Description: Specifies the number of days you want to retain cloudwatch log events.
+    Type: Number
+    Default: 90
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -412,9 +417,10 @@ Resources:
         - Action: cloudwatch:ListMetrics
           Effect: Allow
           Resource: "*"
-        - Action: logs:*
+        # Allow instances to write to cloudwatch logs
+        - Action: ["logs:PutLogEvents", "logs:CreateLogStream", "logs:CreateLogGroup"]
           Effect: Allow
-          Resource: arn:aws:logs:*.*.*
+          Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${AWS::StackName}*
       Roles:
       - !Ref ChefRole
 
@@ -621,6 +627,8 @@ Resources:
           /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}'
     Metadata:
       AWS::CloudFormation::Init:
+        configSets:
+          default: [awslogs, config, filebeat]
         config:
           packages:
             rpm:
@@ -743,6 +751,161 @@ Resources:
                 unzip CloudWatchMonitoringScripts-1.2.1.zip
                 rm CloudWatchMonitoringScripts-1.2.1.zip
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
+        awslogs:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [default]
+                region = ${AWS::Region}
+                [plugins]
+                cwlogs = cwlogs
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                [/var/log/messages]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/messages
+                log_stream_name = {instance_id}
+                log_group_name = ${VarLogMessages}
+                [/var/log/secure]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/secure
+                log_stream_name = {instance_id}
+                log_group_name = ${VarLogSecure}
+                [/var/log/cron]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/cron
+                log_stream_name = {instance_id}
+                log_group_name = ${VarLogCron}
+                [/var/log/cloud-init.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/cloud-init.log
+                log_stream_name = {instance_id}
+                log_group_name = ${VarLogCloudInitLog}
+                [/var/log/cfn-init.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-init.log
+                log_stream_name = {instance_id}
+                log_group_name = ${VarLogCfnInitLog}
+                [/var/log/cfn-init-cmd.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-init-cmd.log
+                log_stream_name = {instance_id}
+                log_group_name = ${VarLogCfnInitCmdLog}
+                [/var/log/cloud-init-output.log]
+                file = /var/log/cloud-init-output.log
+                log_stream_name = {instance_id}
+                log_group_name = ${VarLogCloudInitOutputLog}
+                [/var/log/dmesg]
+                file = /var/log/dmesg
+                log_stream_name = {instance_id}
+                log_group_name = ${VarLogDmesg}
+                [/var/log/aws-signing-proxy/proxy.log]
+                log_group_name = ${VarLogAwsSigningProxyLog}
+                file = /var/log/aws-signing-proxy/proxy.log
+                log_stream_name = {instance_id}
+                [/var/log/opscode/bookshelf/current]
+                log_group_name = ${VarLogOpscodeBookshelfCurrent}
+                file = /var/log/opscode/bookshelf/current
+                log_stream_name = {instance_id}
+                [/var/log/opscode/oc_bifrost/current]
+                log_group_name = ${VarLogOpscodeOcBifrostCurrent}
+                file = /var/log/opscode/oc_bifrost/current
+                log_stream_name = {instance_id}
+                [/var/log/opscode/opscode-erchef/current]
+                log_group_name = ${VarLogOpscodeOpscodeErchefCurrent}
+                file = /var/log/opscode/opscode-erchef/current
+                log_stream_name = {instance_id}
+                [/var/log/opscode/opscode-erchef/requests.log]
+                log_group_name = ${VarLogOpscodeOpscodeErchefRequestsLog}
+                file = /var/log/opscode/opscode-erchef/requests.log.*
+                log_stream_name = {instance_id}
+                [/var/log/opscode/opscode-pushy-server/current]
+                log_group_name = ${VarLogOpscodeOpscodePushyServerCurrent}
+                file = /var/log/opscode/opscode-pushy-server/current
+                log_stream_name = {instance_id}
+                [/var/log/opscode/redis_lb/current]
+                log_group_name = ${VarLogOpscodeRedisLbCurrent}
+                file = /var/log/opscode/redis_lb/current
+                log_stream_name = {instance_id}
+                [/var/log/opscode/oc_id/current]
+                log_group_name = ${VarLogOpscodeOcIdCurrent}
+                file = /var/log/opscode/oc_id/current
+                log_stream_name = {instance_id}
+                [/var/log/opscode/nginx/access.log]
+                log_group_name = ${VarLogOpscodeNginxAccessLog}
+                file = /var/log/opscode/nginx/access.log
+                log_stream_name = {instance_id}
+                [/var/log/opscode/nginx/error.log]
+                log_group_name = ${VarLogOpscodeNginxErrorLog}
+                file = /var/log/opscode/nginx/error.log
+                log_stream_name = {instance_id}
+                [/var/log/chef-manage/redis/current]
+                log_group_name = ${VarLogChefManageRedisCurrent}
+                file = /var/log/chef-manage/redis/current
+                log_stream_name = {instance_id}
+                [/var/log/chef-manage/web/current]
+                log_group_name = ${VarLogChefManageWebCurrent}
+                file = /var/log/chef-manage/web/current
+                log_stream_name = {instance_id}
+                [/var/log/chef-manage/worker/current]
+                log_group_name = ${VarLogChefManageWorkerCurrent}
+                file = /var/log/chef-manage/worker/current
+                log_stream_name = {instance_id}
+              mode: '000644'
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              awslogs:
+                enabled: true
+                ensureRunning: true
+                packages:
+                  yum:
+                  - awslogs
+                files:
+                - /etc/awslogs/awslogs.conf
+                - /etc/awslogs/awscli.conf
+        filebeat:
+          packages:
+            rpm:
+              filebeat: https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-5.6.6-x86_64.rpm
+          files:
+            /etc/filebeat/filebeat.yml:
+              content: !Sub |
+                filebeat.prospectors:
+                - input_type: log
+                  paths:
+                    - /var/log/*
+                    - /var/log/opscode/*/current
+                    - /var/log/opscode/nginx/*.log
+                    - /var/log/opscode/opscode-erchef/requests.log.*
+                    - /var/log/chef-manage/*/current
+                output.elasticsearch:
+                  hosts: ["localhost:9200"]
+                setup.kibana:
+                  host: "http://localhost:9200/_plugin/kibana/"
+                dashboards.enabled: true
+              mode: '000644'
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              filebeat:
+                enabled: true
+                ensureRunning: true
+                packages:
+                  rpm:
+                  - filebeat
+                files:
+                - /etc/filebeat/filebeat.yml
 
   WaitCondition:
     Type: AWS::CloudFormation::WaitCondition
@@ -862,6 +1025,113 @@ Resources:
       ResourceRecords:
       - !GetAtt ChefALB.DNSName
 
+# Logging Groups (Cloudwatch Logs)
+#########################################################################################
+  VarLogMessages:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogSecure:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogCron:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogCloudInitLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogCloudInitOutputLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogCfnInitLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogCfnInitCmdLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogDmesg:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogAwsSigningProxyLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeBookshelfCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeOcBifrostCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeOpscodeErchefCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeOpscodeErchefRequestsLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeOpscodePushyServerCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeRedisLbCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeOcIdCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeNginxAccessLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogOpscodeNginxErrorLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogChefManageRedisCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogChefManageWebCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  VarLogChefManageWorkerCurrent:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
 # Monitoring
 #########################################################################################
   AlertNotificationTopic:
@@ -915,6 +1185,51 @@ Resources:
           Value: '/'
         - Name: Filesystem
           Value: /dev/xvda1
+
+  DiskSpaceUtilizationNvme:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub DiskSpaceUtilizationNvme-${AWS::StackName}
+      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: DiskSpaceUtilization
+      Namespace: System/Linux
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
+      Unit: Percent
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref FrontendAutoScaleGroup
+        - Name: MountPath
+          Value: '/'
+        - Name: Filesystem
+          Value: /dev/nvme0n1p1
+
+  BootstrapDiskSpaceUtilizationNvme:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub DiskSpaceUtilizationNvme-bootstrap-${AWS::StackName}
+      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: DiskSpaceUtilization
+      Namespace: System/Linux
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
+      Unit: Percent
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref BootstrapAutoScaleGroup
+        - Name: MountPath
+          Value: '/'
+        - Name: Filesystem
+          Value: /dev/nvme0n1p1
+
 
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm
@@ -1136,6 +1451,8 @@ Resources:
                         "stacked": false,
                         "metrics": [
                             [ "System/Linux", "DiskSpaceUtilization", "MountPath", "/", "AutoScalingGroupName", "${BootstrapAutoScaleGroup}", "Filesystem", "/dev/xvda1", { "period": 60 } ],
+                            [ "...", "${FrontendAutoScaleGroup}", ".", ".", { "period": 60 } ],
+                            [ "System/Linux", "DiskSpaceUtilization", "MountPath", "/", "AutoScalingGroupName", "${BootstrapAutoScaleGroup}", "Filesystem", "/dev/nvme0n1p1", { "period": 60 } ],
                             [ "...", "${FrontendAutoScaleGroup}", ".", ".", { "period": 60 } ]
                         ],
                         "region": "${AWS::Region}",
