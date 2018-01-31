@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v3.3.0
+Description: AWS Native Chef Server v3.3.1
 
 Parameters:
   # Required Parameters
@@ -982,6 +982,20 @@ Resources:
   RdsEventSubscription:
     Type: AWS::RDS::EventSubscription
     Properties:
+      EventCategories:
+        - "availability"
+        # - "backup"
+        - "configuration change"
+        - "creation"
+        - "deletion"
+        - "failover"
+        - "failure"
+        - "low storage"
+        - "maintenance"
+        - "notification"
+        # - "read replica"
+        - "recovery"
+        - "restoration"
       SnsTopicArn: !Ref AlertNotificationTopic
       SourceIds:
         - !Ref DBPostgres
