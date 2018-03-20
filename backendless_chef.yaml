@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v3.3.1
+Description: AWS Native Chef Server v3.3.2
 
 Parameters:
   # Required Parameters
@@ -97,7 +97,7 @@ Parameters:
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.17.15/el/7/chef-server-core-12.17.15-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.17.33/el/7/chef-server-core-12.17.33-1.el7.x86_64.rpm'
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
@@ -698,7 +698,8 @@ Resources:
                 opscode_solr4['elasticsearch_shard_count'] = ${ElasticSearchShardCount}
                 opscode_solr4['elasticsearch_replica_count'] = ${ElasticSearchReplicaCount}
                 bookshelf['storage_type'] = :sql
-                bookshelf['db_pool_size'] = 20
+                bookshelf['db_pool_init'] = 10
+                bookshelf['db_pool_max'] = 20
                 bookshelf['vip'] = '${ChefALB.DNSName}'.downcase
                 rabbitmq['enable'] = false
                 rabbitmq['management_enabled'] = false
