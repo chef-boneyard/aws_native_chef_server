@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v3.3.1
+Description: AWS Native Chef Server v3.3.2
 
 Parameters:
   # Required Parameters
@@ -77,7 +77,7 @@ Parameters:
       'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
       'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ElasticSearchVersion:
-    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.3. (5.3 recommended for new installs)
+    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.x. (5.5 recommended for new installs)
     Type: String
     Default: '5.5'
     AllowedValues:
@@ -97,15 +97,15 @@ Parameters:
   ChefServerPackage:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.17.15/el/7/chef-server-core-12.17.15-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-server/12.17.33/el/7/chef-server-core-12.17.33-1.el7.x86_64.rpm'
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.8/el/7/chef-manage-2.5.8-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.15/el/7/chef-manage-2.5.15-1.el7.x86_64.rpm'
   PushJobsPackage:
     Description: The URL to the push jobs server package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.6/el/7/opscode-push-jobs-server-2.2.6-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.8/el/7/opscode-push-jobs-server-2.2.8-1.el7.x86_64.rpm'
   BeforeScriptLocation:
     Description: The S3 location of the script which runs before the Main script (optional)
     Type: String
@@ -251,35 +251,35 @@ Conditions:
 Mappings:
   AWSRegion2AMI:
     ap-south-1:
-      AMI: ami-531a4c3c
+      AMI: ami-b46f48db
     eu-west-3:
-      AMI: ami-8ee056f3
+      AMI: ami-cae150b7
     eu-west-2:
-      AMI: ami-403e2524
+      AMI: ami-c12dcda6
     eu-west-1:
-      AMI: ami-d834aba1
+      AMI: ami-9cbe9be5
     ap-northeast-2:
-      AMI: ami-863090e8
+      AMI: ami-efaf0181
     ap-northeast-1:
-      AMI: ami-ceafcba8
+      AMI: ami-28ddc154
     sa-east-1:
-      AMI: ami-84175ae8
+      AMI: ami-f09dcc9c
     ca-central-1:
-      AMI: ami-a954d1cd
+      AMI: ami-2f39bf4b
     ap-southeast-1:
-      AMI: ami-68097514
+      AMI: ami-64260718
     ap-southeast-2:
-      AMI: ami-942dd1f6
+      AMI: ami-60a26a02
     eu-central-1:
-      AMI: ami-5652ce39
+      AMI: ami-1b316af0
     us-east-1:
-      AMI: ami-97785bed
+      AMI: ami-467ca739
     us-east-2:
-      AMI: ami-f63b1193
+      AMI: ami-976152f2
     us-west-1:
-      AMI: ami-824c4ee2
+      AMI: ami-46e1f226
     us-west-2:
-      AMI: ami-f2d3638a
+      AMI: ami-6b8cef13
 
 Resources:
 # Frontend Autoscale Groups
@@ -963,7 +963,7 @@ Resources:
       StorageType: io1
       MultiAZ: true
       Engine: postgres
-      EngineVersion: 9.6.5
+      EngineVersion: 9.6.8
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
