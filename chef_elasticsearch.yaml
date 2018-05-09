@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Chef Server Elasticsearch 4.0.0-alpha1
+
+Parameters:
+  # Required Parameters
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
+  ChefServerSubnets:
+    Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
+    Type: List<AWS::EC2::Subnet::Id>
+  ContactEmail:
+    Description: Contact email for Cloudwatch notifications and instance tagging
+    Type: String
+  ContactDept:
+    Description: Contact department for billing purposes
+    Type: String
+  ###############################################################################
+  # Performance Settings
+  ElasticSearchInstanceType:
+    Description: The Instance type to use for ElasticSearch instances (Note, must have ephemeral storage, the instance type affects the total amount of elasticsearch storage. i3 strongly recommended)
+    Type: String
+    Default: 'i3.large.elasticsearch'
+    AllowedValues: [
+      'i3.large.elasticsearch', 'i3.xlarge.elasticsearch', 'i3.2xlarge.elasticsearch', 'i3.4xlarge.elasticsearch', 'i3.8xlarge.elasticsearch', 'i3.16xlarge.elasticsearch',
+      'i2.xlarge.elasticsearch', 'i2.2xlarge.elasticsearch',
+      'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
+      'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
+  ElasticSearchVersion:
+    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.x. (5.5 recommended for new installs)
+    Type: String
+    Default: '5.5'
+    AllowedValues:
+    - '2.3'
+    - '5.3'
+    - '5.5'
+  ElasticSearchShardCount:
+    Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
+    Default: 3
+    Type: Number
+  ElasticSearchReplicaCount:
+    Description: Replication factor for ElasticSearch sha vrds (how many extra copies to keep)
+    Default: 2
+    Type: Number
+  ###############################################################################
+  # Security Settings
+  FrontendSecurityGroupId:
+    Description: Supply a security group for your chef frontends
+    Type: String
+  ChefRole:
+    Description: Supply an IAM Role for the Chef Servers
+    Type: String
+  ###############################################################################
+  # Input from Parent Stack
+  AlertNotificationTopic:
+    Description: SNS topic
+    Type: String
+
+Resources:
+# ElasticSearch
+#########################################################################################
+  ESSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Elasticsearch Frontend Access"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref FrontendSecurityGroupId
+
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: !Ref ElasticSearchVersion
+      ElasticsearchClusterConfig:
+        InstanceCount: !Sub ${ElasticSearchShardCount}
+        ZoneAwarenessEnabled: false
+        InstanceType: !Ref ElasticSearchInstanceType
+        DedicatedMasterEnabled: false
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: "0"
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS: !Ref ChefRole
+            Action: "es:*"
+      VPCOptions:
+        SubnetIds:
+          - !Select [ 0, !Ref ChefServerSubnets ]
+        SecurityGroupIds:
+          - !Ref ESSecurityGroup
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: "true"
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ES
+      - Key: X-Dept
+        Value: !Ref ContactDept
+      - Key: X-Contact
+        Value: !Ref ContactEmail
+
+
+# Monitoring
+#########################################################################################
+  ESClusterRed:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ESClusterRed-${AWS::StackName}
+      AlarmDescription: Alarm when both primary and replica shards are down.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: ClusterStatus.red
+      Namespace: AWS/ES
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 60
+      Statistic: Minimum
+      Threshold: 1
+      Dimensions:
+        - Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        - Name: ClientId
+          Value: !Ref AWS::AccountId
+
+
+  ESClusterYellow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ESClusterYellow-${AWS::StackName}
+      AlarmDescription: Alarm when replica shards are down for 15 minutes.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: ClusterStatus.yellow
+      Namespace: AWS/ES
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 60
+      Statistic: Minimum
+      Threshold: 1
+      Dimensions:
+        - Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        - Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESFreeStorageSpace:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ESFreeStorageSpace-${AWS::StackName}
+      AlarmDescription: Alarm when free storage space on any node falls below threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: FreeStorageSpace
+      Namespace: AWS/ES
+      ComparisonOperator: LessThanOrEqualToThreshold
+      EvaluationPeriods: 5
+      Period: 60
+      # Reports when any node in the cluster falls below the threshold.
+      Statistic: Minimum
+      Threshold: 5000
+      Dimensions:
+        - Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        - Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESCPUUtilization:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ESCPUUtilization-${AWS::StackName}
+      AlarmDescription: Alarm when all nodes' average CPU load passes threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: CPUUtilization
+      Namespace: AWS/ES
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
+      Unit: Percent
+      Dimensions:
+        - Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        - Name: ClientId
+          Value: !Ref AWS::AccountId
+
+  ESJVMMemoryPressure:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ESJVMMemoryPressure-${AWS::StackName}
+      AlarmDescription: Alarm when maximum percentage of the Java heap used for all data nodes in the cluster exceeds threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: JVMMemoryPressure
+      Namespace: AWS/ES
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Maximum
+      Threshold: 90
+      Unit: Percent
+      Dimensions:
+        - Name: DomainName
+          Value: !Ref ElasticsearchDomain
+        - Name: ClientId
+          Value: !Ref AWS::AccountId
+
+Outputs:
+  ElasticsearchDomain:
+    Value: !Ref ElasticsearchDomain
+    Description: The elasticsearch domain
+  DomainEndpoint:
+    Value: !GetAtt ElasticsearchDomain.DomainEndpoint
+    Description: The elasticsearch domain endpoint

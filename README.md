@@ -37,9 +37,11 @@ However, the most repeatable and least error-prone way to launch this stack is t
 
 ```bash
 MYBUCKET=aws-native-chef-server
+# aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
+aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml && \
 aws cloudformation create-stack \
   --stack-name irving-backendless-chef \
-  --template-url https://s3.amazonaws.com/$MYBUCKET/backendless_chef.yaml \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
   --parameters file://stack_parameters.json
@@ -51,11 +53,11 @@ If you've made changes to the template content or parameters and you wish to upd
 
 ```bash
 MYBUCKET=aws-native-chef-server
-aws s3 cp backendless_chef.yaml s3://$MYBUCKET/
-aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/backendless_chef.yaml
+aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
+aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml && \
 aws cloudformation update-stack \
   --stack-name irving-backendless-chef \
-  --template-url https://s3.amazonaws.com/$MYBUCKET/backendless_chef.yaml \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters file://stack_parameters.json
 ```
@@ -117,7 +119,7 @@ Contributions are welcomed!
 To update the region map execute the following lines in your terminal and then paste the results into the `AWSRegion2AMI` mappings section of the template:
 
 ```bash
-AMAZON_RELEASE='amzn-ami-hvm-2018.03.0.20180622-x86_64-gp2'
+AMAZON_RELEASE='amzn2-ami-hvm-2017.12.0.20180328.1-x86_64-gp2'
 regions=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
 for region in $regions; do
   ami=$(aws --region $region ec2 describe-images \

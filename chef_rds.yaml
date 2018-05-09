@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Chef Server PostgreSQL v4.0.0-alpha1
+
+Parameters:
+  # Required Parameters
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
+  ChefServerSubnets:
+    Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
+    Type: List<AWS::EC2::Subnet::Id>
+  DBPassword:
+    Description: Enter DB Password
+    NoEcho: true
+    Type: String
+  ContactEmail:
+    Description: Contact email for Cloudwatch notifications and instance tagging
+    Type: String
+  ContactDept:
+    Description: Contact department for billing purposes
+    Type: String
+  ###############################################################################
+  # Performance Settings
+  DBInstanceClass:
+    Description: EC2 Instance type for RDS DBs (EBS Optimized instances recommended)
+    Default: 'db.m4.large'
+    Type: String
+    AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
+      db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
+      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge]
+  DBAllocatedStorage:
+    Description: Storage size allocated for the database
+    Default: '100'
+    Type: String
+  DBIops:
+    Description: IOPS allocated to the storage (storage size * 10)
+    Default: '1000'
+    Type: String
+  ###############################################################################
+  # Security Settings
+  FrontendSecurityGroupId:
+    Description: Supply a security group for your chef frontends
+    Type: String
+  ###############################################################################
+  # Input from Parent Stack
+  AlertNotificationTopic:
+    Description: SNS topic
+    Type: String
+
+Resources:
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "RDS Frontend Access"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref FrontendSecurityGroupId
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: RDS DB subnet group
+      SubnetIds: !Ref ChefServerSubnets
+
+  DBPostgres:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: "Snapshot"
+    Properties:
+      DBName: chef
+      AllocatedStorage: !Ref DBAllocatedStorage
+      Iops: !Ref DBIops
+      MasterUsername: chefadmin
+      MasterUserPassword: !Ref DBPassword
+      DBInstanceClass: !Ref DBInstanceClass
+      StorageType: io1
+      MultiAZ: true
+      Engine: postgres
+      EngineVersion: 9.6.8
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 35
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-pgdb
+        - Key: X-Dept
+          Value: !Ref ContactDept
+        - Key: X-Contact
+          Value: !Ref ContactEmail
+
+  RdsEventSubscription:
+    Type: AWS::RDS::EventSubscription
+    Properties:
+      EventCategories:
+        - "availability"
+        # - "backup"
+        - "configuration change"
+        - "creation"
+        - "deletion"
+        - "failover"
+        - "failure"
+        - "low storage"
+        - "maintenance"
+        - "notification"
+        # - "read replica"
+        - "recovery"
+        - "restoration"
+      SnsTopicArn: !Ref AlertNotificationTopic
+      SourceIds:
+        - !Ref DBPostgres
+      SourceType: db-instance
+
+# Monitoring
+#########################################################################################
+  RDSWriteLatency:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub RDSWriteLatency-${AWS::StackName}
+      AlarmDescription: Alarm when RDS write latency is greater than 500ms.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: WriteLatency
+      Namespace: AWS/RDS
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 5
+      Period: 60
+      Statistic: Average
+      Threshold: 500
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DBPostgres
+
+  RDSReadLatency:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub RDSReadLatency-${AWS::StackName}
+      AlarmDescription: Alarm when RDS write latency is greater than a 500ms.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: ReadLatency
+      Namespace: AWS/RDS
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      Period: 300
+      Statistic: Average
+      Threshold: 500
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DBPostgres
+
+Outputs:
+  DBPostgres:
+    Value: !Ref DBPostgres
+    Description: The id of the RDS instance created
+  EndpointAddress:
+    Value: !GetAtt DBPostgres.Endpoint.Address
+    Description: The id of the RDS instance created
