@@ -1,0 +1,58 @@
+[
+  {
+    "ParameterKey":   "AutomationBucket",
+    "ParameterValue": "sce-pub"
+  },
+  {
+    "ParameterKey":   "SSLCertificateARN",
+    "ParameterValue": "arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f"
+  },
+  {
+    "ParameterKey":   "ChefUrl",
+    "ParameterValue": "https://chef.mycompany.com"
+  },
+  {
+    "ParameterKey":   "ChefOAuth2AppId",
+    "ParameterValue": "14dfcf186221781cff51eedd5ac1616"
+  },
+  {
+    "ParameterKey":   "ChefOAuth2Secret",
+    "ParameterValue": "a49402219627cfa6318d58b13e90aca"
+  },
+  {
+    "ParameterKey":   "KeyName",
+    "ParameterValue": "irving"
+  },
+  {
+    "ParameterKey":   "VPC",
+    "ParameterValue": "vpc-fa58989d"
+  },
+  {
+    "ParameterKey":   "InboundAdminSecurityGroupId",
+    "ParameterValue": "sg-bddcfbc4"
+  },
+  {
+    "ParameterKey":   "LoadBalancerScheme",
+    "ParameterValue": "internet-facing"
+  },
+  {
+    "ParameterKey":   "LoadBalancerSubnets",
+    "ParameterValue": "subnet-66c62b01,subnet-df1611a9,subnet-01473659"
+  },
+  {
+    "ParameterKey":   "SupermarketSubnet",
+    "ParameterValue": "subnet-7424b611"
+  },
+  {
+    "ParameterKey":   "SupermarketAssociatePublicIpAddress",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey":   "ContactEmail",
+    "ParameterValue": "irving@chef.io"
+  },
+  {
+    "ParameterKey":   "ContactDept",
+    "ParameterValue": "success"
+  }
+]

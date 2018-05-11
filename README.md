@@ -40,11 +40,11 @@ MYBUCKET=aws-native-chef-server
 # aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
 aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml && \
 aws cloudformation create-stack \
-  --stack-name irving-backendless-chef \
+  --stack-name chef-servers \
   --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
-  --parameters file://stack_parameters.json
+  --parameters file://chef_stack_parameters.json
 ```
 
 ## Updating the stack
@@ -56,7 +56,7 @@ MYBUCKET=aws-native-chef-server
 aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
 aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml && \
 aws cloudformation update-stack \
-  --stack-name irving-backendless-chef \
+  --stack-name chef-servers \
   --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters file://stack_parameters.json

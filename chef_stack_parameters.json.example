@@ -1,5 +1,9 @@
 [
   {
+    "ParameterKey":   "AutomationBucket",
+    "ParameterValue": "sce-pub"
+  },
+  {
     "ParameterKey":   "ElasticSearchVersion",
     "ParameterValue": "5.5"
   },
