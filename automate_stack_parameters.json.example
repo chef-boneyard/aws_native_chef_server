@@ -4,20 +4,16 @@
     "ParameterValue": "sce-pub"
   },
   {
+    "ParameterKey":   "AutomateAdminUsername",
+    "ParameterValue": "admin@example.com"
+  },
+  {
+    "ParameterKey":   "AutomateAdminPassword",
+    "ParameterValue": "SuperSecurePassword"
+  },
+  {
     "ParameterKey":   "SSLCertificateARN",
     "ParameterValue": "arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f"
-  },
-  {
-    "ParameterKey":   "ChefUrl",
-    "ParameterValue": "https://chef.mycompany.com"
-  },
-  {
-    "ParameterKey":   "ChefOAuth2AppId",
-    "ParameterValue": "14dfcf186221781cff51eedd5ac1616"
-  },
-  {
-    "ParameterKey":   "ChefOAuth2Secret",
-    "ParameterValue": "a49402219627cfa6318d58b13e90aca"
   },
   {
     "ParameterKey":   "KeyName",
@@ -25,11 +21,11 @@
   },
   {
     "ParameterKey":   "VPC",
-    "ParameterValue": "vpc-fa58989d"
+    "ParameterValue": "vpc-41d45124"
   },
   {
     "ParameterKey":   "InboundAdminSecurityGroupId",
-    "ParameterValue": "sg-bddcfbc4"
+    "ParameterValue": "sg-c9beb2ac"
   },
   {
     "ParameterKey":   "LoadBalancerScheme",
@@ -37,10 +33,10 @@
   },
   {
     "ParameterKey":   "LoadBalancerSubnets",
-    "ParameterValue": "subnet-66c62b01,subnet-df1611a9,subnet-01473659"
+    "ParameterValue": "subnet-7424b611,subnet-7fd06308,subnet-4dc71114"
   },
   {
-    "ParameterKey":   "SupermarketSubnet",
+    "ParameterKey":   "AutomateSubnet",
     "ParameterValue": "subnet-7424b611"
   },
   {
