@@ -37,14 +37,42 @@ However, the most repeatable and least error-prone way to launch this stack is t
 
 ```bash
 MYBUCKET=aws-native-chef-server
+# If you're using your own bucket, uncomment the next line:
 # aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
-aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml && \
+
+# 1. Chef Automate
+# Configure the automate_stack_parameters.json and then launch the Automate Server:
+aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/automate.yaml && \
+aws cloudformation create-stack \
+  --stack-name automate-server \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/automate.yaml \
+  --capabilities CAPABILITY_IAM \
+  --on-failure DO_NOTHING \
+  --parameters file://automate_stack_parameters.json
+
+# 2. Chef Server HA
+# Configure the chef_stack_parameters.json -
+#   retrieve the ChefAutomateServerUrl and ChefAutomateToken parameters from the Automate server
+# and launch the Chef Server HA stack
+aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server_ha.yaml && \
 aws cloudformation create-stack \
   --stack-name chef-servers \
-  --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server_ha.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
   --parameters file://chef_stack_parameters.json
+
+# 3. Chef Supermarket
+# Configure the supermarket_stack_parameters.json -
+#   retrieve the ChefUrl, ChefOAuth2AppId and ChefOAuth2Secret parameters from the Chef Servers
+#  and launch the Supermarket stack
+aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/supermarket.yaml && \
+aws cloudformation create-stack \
+  --stack-name supermarket-server \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/supermarket.yaml \
+  --capabilities CAPABILITY_IAM \
+  --on-failure DO_NOTHING \
+  --parameters file://supermarket_stack_parameters.json
 ```
 
 ## Updating the stack
@@ -119,7 +147,7 @@ Contributions are welcomed!
 To update the region map execute the following lines in your terminal and then paste the results into the `AWSRegion2AMI` mappings section of the template:
 
 ```bash
-AMAZON_RELEASE='amzn2-ami-hvm-2017.12.0.20180328.1-x86_64-gp2'
+AMAZON_RELEASE='amzn2-ami-hvm-2017.12.0.20180509-x86_64-gp2'
 regions=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
 for region in $regions; do
   ami=$(aws --region $region ec2 describe-images \

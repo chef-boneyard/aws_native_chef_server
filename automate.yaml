@@ -159,35 +159,35 @@ Conditions:
 Mappings:
   AWSRegion2AMI:
     ap-south-1:
-      AMI: ami-e5441e8a
+      AMI: ami-7d95b612
     eu-west-3:
-      AMI: ami-bf17a1c2
+      AMI: ami-a88233d5
     eu-west-2:
-      AMI: ami-b98667de
+      AMI: ami-924aa8f5
     eu-west-1:
-      AMI: ami-38c09341
+      AMI: ami-921423eb
     ap-northeast-2:
-      AMI: ami-96b916f8
+      AMI: ami-d117bebf
     ap-northeast-1:
-      AMI: ami-8fbab2f3
+      AMI: ami-2724cf58
     sa-east-1:
-      AMI: ami-7f712613
+      AMI: ami-4fd48923
     ca-central-1:
-      AMI: ami-e8a0268c
+      AMI: ami-c59818a1
     ap-southeast-1:
-      AMI: ami-3eb0e942
+      AMI: ami-a7f0c4db
     ap-southeast-2:
-      AMI: ami-8267abe0
+      AMI: ami-c267b0a0
     eu-central-1:
-      AMI: ami-b144195a
+      AMI: ami-43eec3a8
     us-east-1:
-      AMI: ami-f973ab84
+      AMI: ami-afd15ed0
     us-east-2:
-      AMI: ami-31c7f654
+      AMI: ami-2a0f324f
     us-west-1:
-      AMI: ami-be4051de
+      AMI: ami-00d8c660
     us-west-2:
-      AMI: ami-07eb707f
+      AMI: ami-31394949
 
 Resources:
   ChefInstanceProfile:
