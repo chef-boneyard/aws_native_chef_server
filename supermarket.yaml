@@ -3,10 +3,6 @@ Description: AWS Native Supermarket (auto-recovering standalone) v4.0.0-alpha1
 
 Parameters:
   # Required Parameters
-  AutomationBucket:
-    Default: 'sce-pub'
-    Type: String
-    Description: AWS S3 bucket name that contains all of the cloudformation templates and scripts for this stack
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
@@ -69,14 +65,14 @@ Parameters:
     Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
     Type: String
     Default: 'https://packages.chef.io/files/stable/supermarket/3.1.63/el/7/supermarket-3.1.63-1.el7.x86_64.rpm'
-  BeforeScriptLocation:
-    Description: The S3 location of the script which runs before the Main script (optional)
-    Type: String
-    Default: ''
-  AfterScriptLocation:
-    Description: The S3 location of the script which runs after the Main script (optional)
-    Type: String
-    Default: ''
+  # BeforeScriptLocation:
+  #   Description: The S3 location of the script which runs before the Main script (optional)
+  #   Type: String
+  #   Default: ''
+  # AfterScriptLocation:
+  #   Description: The S3 location of the script which runs after the Main script (optional)
+  #   Type: String
+  #   Default: ''
   ###############################################################################
   # Security Settings
   LoadBalancerScheme:
@@ -115,6 +111,10 @@ Parameters:
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
 
 Metadata:
+  cfn-lint:
+    config:
+      ignore_checks:
+        - W2507
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
@@ -131,16 +131,6 @@ Metadata:
           default: "Performance Settings"
         Parameters:
           - InstanceType
-          - MaxFrontendInstances
-          - MinFrontendInstances
-          - LicenseCount
-          - DBInstanceClass
-          - DBAllocatedStorage
-          - DBIops
-          - ElasticSearchInstanceType
-          - ElasticSearchVersion
-          - ElasticSearchShardCount
-          - ElasticSearchReplicaCount
       - Label:
           default: "Package Versions & Locations"
         Parameters:
@@ -151,7 +141,6 @@ Metadata:
           - LoadBalancerScheme
           - LoadBalancerSecurityGroupId
           - FrontendSecurityGroupId
-          - DisableSignup
           - SupermarketIamRole
 
 Conditions:
