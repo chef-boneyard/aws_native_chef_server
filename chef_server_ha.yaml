@@ -188,6 +188,10 @@ Parameters:
     Type: Number
     Default: 90
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+  AMIfromSSM:
+    Description: AMI ID retrieved from an SSM parameter
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
 
 Metadata:
   cfn-lint:
@@ -251,43 +255,6 @@ Conditions:
     !Equals [ !Ref FrontendSecurityGroupId, '' ]
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
-
-# NOTE: If you wish to replace this AMI with your own RHEL-ish variety, be prepared to
-# - have the `aws` & `cfn-init` tools preinstalled
-# - Install and enable NTP or chronyd
-# - Support systemd as the init system, or else rewrite the below aws-signing-proxy service defitinion into systemd
-Mappings:
-  AWSRegion2AMI:
-    ap-south-1:
-      AMI: ami-7d95b612
-    eu-west-3:
-      AMI: ami-a88233d5
-    eu-west-2:
-      AMI: ami-924aa8f5
-    eu-west-1:
-      AMI: ami-921423eb
-    ap-northeast-2:
-      AMI: ami-d117bebf
-    ap-northeast-1:
-      AMI: ami-2724cf58
-    sa-east-1:
-      AMI: ami-4fd48923
-    ca-central-1:
-      AMI: ami-c59818a1
-    ap-southeast-1:
-      AMI: ami-a7f0c4db
-    ap-southeast-2:
-      AMI: ami-c267b0a0
-    eu-central-1:
-      AMI: ami-43eec3a8
-    us-east-1:
-      AMI: ami-afd15ed0
-    us-east-2:
-      AMI: ami-2a0f324f
-    us-west-1:
-      AMI: ami-00d8c660
-    us-west-2:
-      AMI: ami-31394949
 
 Resources:
 # Frontend Autoscale Groups
@@ -627,10 +594,7 @@ Resources:
           VolumeType: gp2
           DeleteOnTermination: true
       IamInstanceProfile: !Ref ChefInstanceProfile
-      ImageId: !FindInMap
-        - AWSRegion2AMI
-        - !Ref AWS::Region
-        - AMI
+      ImageId: !Ref AMIfromSSM
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       SecurityGroups:
@@ -638,16 +602,16 @@ Resources:
       - !Ref InboundAdminSecurityGroupId
       UserData:
         "Fn::Base64": !Sub |
-          #!/bin/bash -x
-          function error_exit {
+          #!/bin/bash -e
+          trap "{
+            /opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource ServerLaunchConfig
             # Uncomment this next line before going to production
             # aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-            exit 1
-          }
+          }" ERR
           # Update the system first
           yum upgrade -y
           # Execute AWS::CloudFormation::Init
-          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region} || error_exit
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
           # All is well so signal success and let CF know wait function is complete
           /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}'
     Metadata:

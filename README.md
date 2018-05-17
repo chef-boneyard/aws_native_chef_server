@@ -37,14 +37,15 @@ However, the most repeatable and least error-prone way to launch this stack is t
 
 ```bash
 MYBUCKET=aws-native-chef-server
+MYID=mycompany
 # If you're using your own bucket, uncomment the next line:
-# aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
+# aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*"
 
 # 1. Chef Automate
 # Configure the automate_stack_parameters.json and then launch the Automate Server:
 aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/automate.yaml && \
 aws cloudformation create-stack \
-  --stack-name automate-server \
+  --stack-name ${MYID}-automate-server \
   --template-url https://s3.amazonaws.com/$MYBUCKET/automate.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
@@ -56,7 +57,7 @@ aws cloudformation create-stack \
 # and launch the Chef Server HA stack
 aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server_ha.yaml && \
 aws cloudformation create-stack \
-  --stack-name chef-servers \
+  --stack-name ${MYID}-chef-servers \
   --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server_ha.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
@@ -68,7 +69,7 @@ aws cloudformation create-stack \
 #  and launch the Supermarket stack
 aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/supermarket.yaml && \
 aws cloudformation create-stack \
-  --stack-name supermarket-server \
+  --stack-name ${MYID}-supermarket-server \
   --template-url https://s3.amazonaws.com/$MYBUCKET/supermarket.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
@@ -143,18 +144,8 @@ Contributions are welcomed!
 
 # Developer notes
 
-## RegionMap
-To update the region map execute the following lines in your terminal and then paste the results into the `AWSRegion2AMI` mappings section of the template:
-
-```bash
-AMAZON_RELEASE='amzn2-ami-hvm-2017.12.0.20180509-x86_64-gp2'
-regions=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
-for region in $regions; do
-  ami=$(aws --region $region ec2 describe-images \
-  --filters "Name=name,Values=${AMAZON_RELEASE}" \
-  --query "Images[0].ImageId" --output "text")
-  printf "    $region:\n      AMI: $ami\n"; done
-```
+## AMIfromSSM
+Credit to: https://forums.aws.amazon.com/thread.jspa?threadID=280772&tstart=0
 
 # Credits
 
