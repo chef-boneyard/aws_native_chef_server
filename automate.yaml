@@ -55,14 +55,6 @@ Parameters:
   #   Default: ''
   ###############################################################################
   # Security Settings
-  AutomateAdminUsername:
-    Description: Username for the Chef Automate admin user (must be an email address)
-    Type: String
-    Default: admin@example.com
-  AutomateAdminPassword:
-    Description: Password for the Chef Automate admin user
-    Type: String
-    Default: SuperSecurePassword
   AutomateDataCollectorToken:
     Description: The token used for ingesting Data Collector (Chef) events
     Type: String
@@ -360,7 +352,7 @@ Resources:
               zip: []
               unzip: []
           files:
-            /usr/local/sbin/chef-automate.zip:
+            /root/chef-automate.zip:
               source: https://packages.chef.io/files/current/automate/latest/chef-automate_linux_amd64.zip
             /etc/automate-config.toml:
               content: !Sub
@@ -379,11 +371,6 @@ Resources:
                     channel = "current"
                     upgrade_strategy = "at-once"
                     deployment_type = "local"
-                    [deployment.v1.svc.admin_user]
-                      # Default admin user settings
-                      email = "${AutomateAdminUsername}"
-                      username = "admin"
-                      password = "${AutomateAdminPassword}"
 
                 # Load Balancer service configuration.
                 [load_balancer]
@@ -484,9 +471,9 @@ Resources:
                 grep hab /proc/mounts || mount /dev/data-vg/data-lv /hab
             03_configure_automate:
               command: !Sub |
-                cd /usr/local/sbin
-                unzip chef-automate.zip
-                /usr/local/sbin/chef-automate deploy /etc/automate-config.toml
+                cd /root
+                unzip chef-automate.zip -d /usr/local/sbin
+                /usr/local/sbin/chef-automate deploy /etc/automate-config.toml --accept-terms-and-mlsa --skip-preflight
             04_after_script:
               command: !Sub |
                 true

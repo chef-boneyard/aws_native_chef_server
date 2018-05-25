@@ -1,19 +1,7 @@
 [
   {
-    "ParameterKey":   "AutomationBucket",
-    "ParameterValue": "sce-pub"
-  },
-  {
-    "ParameterKey":   "AutomateAdminUsername",
-    "ParameterValue": "admin@example.com"
-  },
-  {
-    "ParameterKey":   "AutomateAdminPassword",
-    "ParameterValue": "SuperSecurePassword"
-  },
-  {
     "ParameterKey":   "SSLCertificateARN",
-    "ParameterValue": "arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f"
+    "ParameterValue": "arn:aws:acm:us-west-2:446539779517:certificate/82d30a13-b420-4f43-80de-9e7872f70b96"
   },
   {
     "ParameterKey":   "KeyName",
@@ -46,6 +34,10 @@
   {
     "ParameterKey":   "ContactDept",
     "ParameterValue": "success"
+  },
+  {
+    "ParameterKey":   "Route53RecordName",
+    "ParameterValue": "automate-irving"
   },
   {
     "ParameterKey":   "Route53HostedZone",
