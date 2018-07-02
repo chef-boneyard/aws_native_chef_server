@@ -101,7 +101,7 @@ Parameters:
   ChefManagePackage:
     Description: The URL to the chef-manage EL7 package which will be downloaded
     Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.15/el/7/chef-manage-2.5.15-1.el7.x86_64.rpm'
+    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.16/el/7/chef-manage-2.5.16-1.el7.x86_64.rpm'
   PushJobsPackage:
     Description: The URL to the push jobs server package which will be downloaded
     Type: String
@@ -251,35 +251,35 @@ Conditions:
 Mappings:
   AWSRegion2AMI:
     ap-south-1:
-      AMI: ami-b46f48db
+      AMI: ami-5a8da735
     eu-west-3:
-      AMI: ami-cae150b7
+      AMI: ami-d50bbaa8
     eu-west-2:
-      AMI: ami-c12dcda6
+      AMI: ami-b2b55cd5
     eu-west-1:
-      AMI: ami-9cbe9be5
+      AMI: ami-e4515e0e
     ap-northeast-2:
-      AMI: ami-efaf0181
+      AMI: ami-ebc47185
     ap-northeast-1:
-      AMI: ami-28ddc154
+      AMI: ami-9c9443e3
     sa-east-1:
-      AMI: ami-f09dcc9c
+      AMI: ami-83d58fef
     ca-central-1:
-      AMI: ami-2f39bf4b
+      AMI: ami-03e86a67
     ap-southeast-1:
-      AMI: ami-64260718
+      AMI: ami-ed838091
     ap-southeast-2:
-      AMI: ami-60a26a02
+      AMI: ami-33f92051
     eu-central-1:
-      AMI: ami-1b316af0
+      AMI: ami-a058674b
     us-east-1:
-      AMI: ami-467ca739
+      AMI: ami-cfe4b2b0
     us-east-2:
-      AMI: ami-976152f2
+      AMI: ami-40142d25
     us-west-1:
-      AMI: ami-46e1f226
+      AMI: ami-0e86606d
     us-west-2:
-      AMI: ami-6b8cef13
+      AMI: ami-0ad99772
 
 Resources:
 # Frontend Autoscale Groups

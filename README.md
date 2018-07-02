@@ -110,7 +110,7 @@ Contributions are welcomed!
 To update the region map execute the following lines in your terminal and then paste the results into the `AWSRegion2AMI` mappings section of the template:
 
 ```bash
-AMAZON_RELEASE='amzn-ami-hvm-2018.03.0.20180412-x86_64-gp2'
+AMAZON_RELEASE='amzn-ami-hvm-2018.03.0.20180622-x86_64-gp2'
 regions=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
 for region in $regions; do
   ami=$(aws --region $region ec2 describe-images \
