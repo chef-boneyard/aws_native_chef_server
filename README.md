@@ -107,7 +107,7 @@ Yes, it is significantly more robust and easier to operate.
 - Support for restoring from an RDS Snapshot and existing secrets bucket
 - Investigate better secrets handling (AWS secrets service?)
 - Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or RedShift
-- Add Chef Automate as part of the deployment
+- Add Chef Automate as part of the deployment ([WIP](https://github.com/chef-customers/aws_native_chef_server/pull/37))
 
 Contributions are welcomed!
 
@@ -134,3 +134,4 @@ Contributors:
 - Irving Popovetsky
 - Joshua Hudson
 - Levi Smith
+- Daniel Bright

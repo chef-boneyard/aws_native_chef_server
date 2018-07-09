@@ -5,20 +5,42 @@
 Before you start, make sure the AMI that is listed in the `backendless_chef.yaml` for your region has been accepted/approved for use in the AWS Marketplace. We are using native Amazon Linux AMIs, the most up to date list is [always here](https://aws.amazon.com/amazon-linux-ami/).
 
 ### For SSL
-1. You must have a DNS Record Name and Zone Name defined prior to setup if you want SSL.
-1. You must have already created and uploaded an SSL cert to AWS. Once you've uploaded the cert, you will need the `ARN` of the cert resource. For info on how to do this, please follow the [AWS Certificate Manger](https://aws.amazon.com/certificate-manager/) docs.
+1. You must have a DNS Record Name and Zone Name planned for this cluster to match the SSL certificate.
+1. You must have already created and uploaded an SSL cert to AWS. Once you've uploaded the cert, you will need to follow these steps to update the `backendless_chef.yaml` template with the correct values:
+   * Update the `SSLCertificateARN` parameter with the `ARN` for the SSL Cert. _For info on how to get the ARN, please follow the [AWS Certificate Manger](https://aws.amazon.com/certificate-manager/) docs._
+   * **If you're using AWS Route 53**, fill in the `Route53RecordName` and `Route53HostedZone` parameters for the template
+   * **If you're not using AWS Route 53**, create the DNS record in your own nameservers to be a CNAME record that points at the stack's Application Load Balancer (e.g. my-chef-stack-1942464223.us-west-2.elb.amazonaws.com)
 
 ### Using with Automate
 
 At this time, this template does not setup Automate as part of it's deployment. However, you can configure it to point to an Automate server that you will setup afterwards, or that is already setup.
 1. You should have a token already generated, follow the [instructions here](https://docs.chef.io/data_collection.html#step-1-configure-a-data-collector-token-in-chef-automate) on how to generate an Automate token.
-1. The Chef Automate URL, for more information on how this URL is formatted, [read this](https://docs.chef.io/data_collection.html#step-2-configure-your-chef-server-to-point-to-chef-automate).
+1. The Chef Automate URL, for more information on how this URL is formatted, [read this](https://automate.chef.io/docs/data-collection/).
 
 ### Package Versions
 
-It's recommended to have the packages downloaded and hosted locally before proceeding, an S3 bucket works well for this purpose. Once you've downloaded the correct EL7 packages and have them hosted, adjust the following variables accordingly to point to the proper URLs.
+It's recommended to have the packages downloaded and hosted locally before proceeding, an S3 bucket, Artifactory/Nexus or YUM/APT repository cache works well for this purpose. Once you've downloaded the correct EL7 packages and have them hosted, adjust the following variables accordingly to point to the proper URLs.
 
 * `ChefServerPackage`, `ChefManagePackage`, `PushJobsPackage`
+
+_Here's an example of setting up an S3 cache:_
+
+1. Install `mixlib-install` Ruby Gem from the [mixlib-install repo](https://github.com/chef/mixlib-install) on an EC2 instance that has access to the S3 bucket being used.
+1. Install the `aws` cli tool on the same instance from [aws cli](https://aws.amazon.com/cli/).
+1. Run the following commands:
+    ```
+    mixlib-install download chef-server --platform el --platform-version 7.5 --architecture x86_64
+    # Starting download https://packages.chef.io/files/stable/chef-server/12.17.33/el/7/chef-server-core-12.17.33-1.el7.x86_64.rpm
+    # Download saved to /Users/myname/chef-server-core-12.17.33-1.el7.x86_64.rpm
+
+    aws s3 cp /Users/myname/chef-server-core-12.17.33-1.el7.x86_64.rpm s3://mybucket/package-cache/ --acl public-read
+    # upload: ./chef-server-core-12.17.33-1.el7.x86_64.rpm to s3://mybucket/package-cache/chef-server-core-12.17.33-1.el7.x86_64.rpm
+
+    aws s3 presign s3://mybucket/package-cache/chef-server-core-12.17.33-1.el7.x86_64.rpm | cut -d '?' -f 1
+    # https://mybucket.s3.amazonaws.com/package-cache/chef-server-core-12.17.33-1.el7.x86_64.rpm
+    ```
+1. Set the last output (e.g. `https://mybucket.s3.amazonaws.com/package-cache/chef-server-core-12.17.33-1.el7.x86_64.rpm` as shown above) as your `ChefServerPackage` value in `backendless_chef.yaml`.
+    
 
 ## Network
 
@@ -30,7 +52,7 @@ You must already have a VPC setup properly before continuing setting up the stac
 ## Security
 
 * You should already have created/uploaded an SSH key to AWS and have the ARN available.
-* You can let this template setup an Admin SG, but it's recommended to use one already in place for SSH, HTTP and HTTPS access.
+* You should already have an Admin SG created for inbound SSH connections. The Security Group ID should be provided for the `InboundAdminSecurityGroupId` parameter in `backendless_chef.yaml`, otherwise you won't have any ssh connectivity to your cluster.
 
 ## Amazon ElasticSearch and Service Linked Role (SLR)
 
