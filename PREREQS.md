@@ -14,7 +14,7 @@ Before you start, make sure the AMI that is listed in the `backendless_chef.yaml
 ### Using with Automate
 
 At this time, this template does not setup Automate as part of it's deployment. However, you can configure it to point to an Automate server that you will setup afterwards, or that is already setup.
-1. You should have a token already generated, follow the [instructions here](https://docs.chef.io/data_collection.html#step-1-configure-a-data-collector-token-in-chef-automate) on how to generate an Automate token.
+1. You should have a token already generated, follow the [instructions here](https://automate.chef.io/docs/data-collection/) on how to generate an Automate token.
 1. The Chef Automate URL, for more information on how this URL is formatted, [read this](https://automate.chef.io/docs/data-collection/).
 
 ### Package Versions
