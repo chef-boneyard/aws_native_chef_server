@@ -17,10 +17,16 @@ A Chef Server cluster utilizing Amazon services for high availability, auto-scal
 
 # Using it
 
-## Requirements:
+## Requirements
 * A working knowledge and comfort level with CloudFormation so that you can read and understand this template for your self
 * Permissions to create all of the types of resources specified in this template (IAM roles, Database subnets, etc)
 * A valid SSL certificate ARN (from the AWS Certificate Manager service)
+
+## Prerequisites
+
+Before you fire it up, there are a few things you should make sure you have prepped and ready.
+
+* Please review the [Prerequisites doc before proceeding](./PREREQS.md)
 
 ## Fire up the Chef Server stack
 
@@ -101,6 +107,7 @@ Yes, it is significantly more robust and easier to operate.
 - Support for restoring from an RDS Snapshot and existing secrets bucket
 - Investigate better secrets handling (AWS secrets service?)
 - Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or RedShift
+- Add Chef Automate as part of the deployment ([WIP](https://github.com/chef-customers/aws_native_chef_server/pull/37))
 
 Contributions are welcomed!
 
@@ -127,3 +134,4 @@ Contributors:
 - Irving Popovetsky
 - Joshua Hudson
 - Levi Smith
+- Daniel Bright
