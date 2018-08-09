@@ -38,15 +38,11 @@ Parameters:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
     Type: Number
-  ElasticSearchReplicaCount:
-    Description: Replication factor for ElasticSearch sha vrds (how many extra copies to keep)
-    Default: 2
-    Type: Number
   ###############################################################################
   # Security Settings
   FrontendSecurityGroupId:
     Description: Supply a security group for your chef frontends
-    Type: String
+    Type: AWS::EC2::SecurityGroup::Id
   ChefRole:
     Description: Supply an IAM Role for the Chef Servers
     Type: String
@@ -80,7 +76,7 @@ Resources:
         InstanceType: !Ref ElasticSearchInstanceType
         DedicatedMasterEnabled: false
       SnapshotOptions:
-        AutomatedSnapshotStartHour: "0"
+        AutomatedSnapshotStartHour: 0
       AccessPolicies:
         Version: "2012-10-17"
         Statement:

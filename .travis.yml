@@ -1,11 +1,15 @@
-addons:
-  apt:
-    packages:
-    - awscli
-install: true
+language: python
+python:
+   - '3.6'
+install:
+  - pip install awscli cfn-lint
 script:
-- aws s3 cp backendless_chef.yaml s3://aws-native-chef-server/backendless_chef_test.yaml
-- aws cloudformation validate-template --template-url https://s3.amazonaws.com/aws-native-chef-server/backendless_chef_test.yaml
+- cfn-lint -f json *.yaml
+- aws cloudformation validate-template --template-body file://chef_elasticsearch.yaml
+- aws cloudformation validate-template --template-body file://chef_rds.yaml
+- aws cloudformation validate-template --template-body file://automate.yaml
+- aws cloudformation validate-template --template-body file://chef_server_ha.yaml
+- aws cloudformation validate-template --template-body file://supermarket.yaml
 deploy:
   provider: s3
   access_key_id:
@@ -16,9 +20,3 @@ deploy:
   acl: public_read
   on:
     branch: master
-env:
-  global:
-  - secure: vHqHE/Du2MHf8xGHtB21wZOf2sNpFxelx+eCIdffAq7EpwhmY6de60Q5Ywk6ODx4yke21tcrWfLJNH8EWEeemvd8Neq6GRvj+5ezNoE16gucFJDcQ9blIHZGiPOVuMPZILrbGfFG3Hnkxu4jBK/8gATr5Sq0eBuFMmPFexZo6QKynayAzMiYdsnkaMOfhH0wPXXZLQOpN+GO4UmG7gjPs8cTCZUHj0OzWkU6/0AtEe7hLm5KFfeVVh4QWoipOEXRX+9Wmijtr29H1tomEuFin5VZpToZnE+3iHW1VhMtbsSmOdswX4JnjUa0upG8uOzvYmioNrq8Ae4wYdX3/nNBkpKNfPAOFqdS5b4tVEeeDCGKT/bLV+1g0FxK1svFst2H/IT8GGnsoeGKoGOUmSYEVC6nRe0+74wZs5vi2VmqcwffgQdB0PJFlgnFKxe7r52mT6biLRWbtb4nP4Sr+mBIwIZB4sKuIa1vtdgj5APGEpSAa0DW1lp6oBxhyWPXg7/Fmy4H5mZXS7gZXQoHX9/cPeHd3cdd9bNtmcK+HOMIwrmP6mxGIbUPUXlOrgCE3ugiPsVC8uRlCobjYJbrbOHuQToh/TdZN9oAbJqwjiR5mCJuaHc34/ZleNDLPpdJTyYs9ARBft1c/wWqx9BnexoLuzeTAuVs1hb8yYzjHtHpEsE=
-  - secure: Mxngxb+f+edoK42od1M1ojTbOr/Ha3fyEkjYzvX1gF7P0P2imm4utiBciJdJq1AnxXLKPYwoSMYMNvkXCpWdcOrz9JF4Hux+aJ1f7wzssaMgVAdfi8ZM438HXTz7LgkdkZ/d/FX+CgWszx37aHd9AfzH/x9/wQDEuAf+PvSPjGVW86V8jYZ74ZYgyJVnXdkOXwdKOT4TqWp/C7XQvzOJdm8soEFllEh5tuyCDj5SqGfjCj6XzEXQIVAoBujSiIVs6N1cSY3qayy63ReinBk29BcdhThSpBr1OefBcJ33GTk02R0mlqUeVncZ1PWRdNmizf5qPB9+dDbAhEoZzrk6fcE+lNLWvIKV/jhEnumQGmLWwEpZGm20K2AVqDGcsyKdvOzP4J43xpkHHvMMBOP5wqjbJ3UhPA4xlu6BVpQgSYF12YBkjMTKecqhzcPkmbFatuN9kNpGxKyEGL12KzkbrXVVJ2WCank1C7XYvPPFi14GgVb7dyB3GOGP5mvfCQw6tnYfkGdvQKoXzkBK7i/5LuLl3R9wmBUsCc+pflHEdLEPJ6BeWE3WmjEPsZTYayaEW8YXjU0AIHGfvXVB7U4GuUVaqIOltSdt2j5C730ak4OwriwHKsbI1TTkHETcwvPkyk3FYmUW4HoxOndLcXtcDIqp1PwECe7doeTbTcBelho=
-  - secure: tU3ZGSVTVRBarT1ZOH3y/fu/fGKaphN/48ICQbfT6LVCZ0g+6vNp0QUaukiJaDeoyQvyJOX1iXyTYtxMZy3++PTJJ/JU2nvrFEaE0Y9l3LdnMC+v2cZtDWOAROUqBgWIQL9bDH5YIR6Iqb6DtLdp70qHvfUQhHjte/n8ej1n6Kr8avaUU/jfGU6GesjXIRitz2dKh62IJrMNG0GThhAMjH50BNg5uXVgSsUXBrDUZcc7KHlSHI1hvf3pt35/irMgflVM4yDhJwKpKXY/szxcGkn1na4MhaJGLZPupmkYpoHjdRjBvBI9he5wbFucm/coSyRo6GLqE0APi4AICNQS/gCIjDeEG0vgIh3YrERVdIfJFp3La85pbPUmwA9c4zIbyVBRtUUKDpjdhJYoS9Mj4+mLSBvAI0TxG/CNU8Hbg7VMHLIW05SvPFAk7GMF8MsM9jQHjl3KztRupyw3v3x6qPb9qezJYzBVJxZ1GeHSWG3roAmqKnoN39EUMtcQglh/2fS1HeDfU6O+gN8ZxK+g0jILTxyAgj++3x0pZ45B+OSTh7fuReT6uAZYZHjF1Vg1PFK5Ek7gjmksOO3QH+G62u9j+7iPlFWkYAfj0/gHUsN+roe5o7FvjJmVhhIb5x35aX0IONNg6eWr7shAA9aLCcR/26aY+ouL0juTwYb564U=
-  - secure: Tad2u9nKOcE5LGe/ruLbJP9FuGWZiEIPKEYp7di+AV/EnYUrPN3i2BP2uv/atC0Uwwj5HbEWnNqdOZqJCMafPacetVvNGtYXxati9PeWbg9eGtm6GOGnJQ3GmBgC0vxAt8MmjAOu7o4tK8X3FCiaDiiJtsIf+tohUADKfMV+28NHyd1RXls2tW+BybtNOodUiydZDLIAxTiqePUlHcQdgW65HRseHOpSUnKbzyrsOrBqnWtIm6/kXNVJwxVxTHAsNNMRSVldiI+JZtlsQPByxI7e/ielzxOU+He3AvNmzbvmX9cWIfbixSEgvFO+hUCQdz1lFEjuSPMZI+hGxAu76ks7hVu9WBaThE+rgWZcT4SPIWTFI4OWrodEZI56q/GI4aOA4S+3AZRyd2R1rS9IGAgNPCLu95SyCpn+Pl4yOVnGuKTMs8O2CodjVIzG0iQC3IJA+9hqho4yrYMnn17O4itvUnTx2YXdybs3AKRdp7ivKeAXK3iQL9HOsI+itTgy616scW7+Tefj3a53cHpNkUX2jLWm4Z1C/fbAhFOPGu5FNRjagHFDO04WoMxMWQWRpi7j4j1tBVEuUYzliKFEZwYZrR01fH9Bq6ybuOpKN8wBfrEORf45BaZYI4+8WXdXdtEV8ors4EDfO3wm+w4YRxSKr/+Nst54P6ooJmgGT+E=

@@ -40,7 +40,7 @@ Parameters:
   # Security Settings
   FrontendSecurityGroupId:
     Description: Supply a security group for your chef frontends
-    Type: String
+    Type: AWS::EC2::SecurityGroup::Id
   ###############################################################################
   # Input from Parent Stack
   AlertNotificationTopic:
@@ -81,7 +81,7 @@ Resources:
       EngineVersion: 9.6.8
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
-      BackupRetentionPeriod: 35
+      BackupRetentionPeriod: '35'
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref DBSecurityGroup

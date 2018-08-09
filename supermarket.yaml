@@ -42,8 +42,8 @@ Parameters:
     Type: String
     Default: false
     AllowedValues:
-    - 'true'
-    - 'false'
+    - true
+    - false
   ###############################################################################
   # Performance Settings
   InstanceType:
@@ -219,18 +219,18 @@ Resources:
       GroupDescription: Setup Ingress/Egress for Chef Frontend
       SecurityGroupEgress:
       - CidrIp: 0.0.0.0/0
-        FromPort: '0'
+        FromPort: 0
         IpProtocol: tcp
-        ToPort: '65535'
+        ToPort: 65535
       SecurityGroupIngress:
-      - FromPort: '80'
+      - FromPort: 80
         IpProtocol: tcp
         SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        ToPort: '80'
-      - FromPort: '443'
+        ToPort: 80
+      - FromPort: 443
         IpProtocol: tcp
         SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        ToPort: '443'
+        ToPort: 443
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-FE-SG
@@ -243,18 +243,18 @@ Resources:
       GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
       SecurityGroupEgress:
       - CidrIp: 0.0.0.0/0
-        FromPort: '0'
+        FromPort: 0
         IpProtocol: tcp
-        ToPort: '65535'
+        ToPort: 65535
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
-        FromPort: '80'
+        FromPort: 80
         IpProtocol: tcp
-        ToPort: '80'
+        ToPort: 80
       - CidrIp: 0.0.0.0/0
-        FromPort: '443'
+        FromPort: 443
         IpProtocol: tcp
-        ToPort: '443'
+        ToPort: 443
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-ELB-SG
@@ -303,7 +303,7 @@ Resources:
           Port: 443
         TargetGroupAttributes:
           - Key: stickiness.enabled
-            Value: true
+            Value: 'true'
           - Key: stickiness.type
             Value: lb_cookie
         Tags:
@@ -522,7 +522,7 @@ Resources:
       Comment: !Sub Created by Cloudformation ${AWS::StackName}
       Name: !Sub ${Route53RecordName}.${Route53HostedZone}
       Type: CNAME
-      TTL: 900
+      TTL: '900'
       ResourceRecords:
       - !GetAtt ChefALB.DNSName
 

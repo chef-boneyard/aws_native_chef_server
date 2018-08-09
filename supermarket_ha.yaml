@@ -55,8 +55,8 @@ Parameters:
     Type: String
     Default: false
     AllowedValues:
-    - 'true'
-    - 'false'
+    - true
+    - false
   ###############################################################################
   # Performance Settings
   InstanceType:
@@ -127,8 +127,8 @@ Parameters:
     Type: String
     Default: true
     AllowedValues:
-    - 'true'
-    - 'false'
+    - true
+    - false
   ChefServerIamRole:
     Description: Supply an IAM Role for the Chef Servers (leave blank to have it created for you). NOTE If you supply your own role, you must also provide an S3 Bucket which that role can access
     Type: String
@@ -247,7 +247,7 @@ Resources:
     Properties:
       AdjustmentType: ChangeInCapacity
       AutoScalingGroupName: !Ref FrontendAutoScaleGroup
-      Cooldown: 60
+      Cooldown: '60'
       ScalingAdjustment: 1
 
   FrontendAutoScaleDownPolicy:
@@ -255,7 +255,7 @@ Resources:
     Properties:
       AdjustmentType: ChangeInCapacity
       AutoScalingGroupName: !Ref FrontendAutoScaleGroup
-      Cooldown: 60
+      Cooldown: '60'
       ScalingAdjustment: -1
 
   StackSupermarketBucket:
@@ -338,18 +338,18 @@ Resources:
       GroupDescription: Setup Ingress/Egress for Chef Frontend
       SecurityGroupEgress:
       - CidrIp: 0.0.0.0/0
-        FromPort: '0'
+        FromPort: 0
         IpProtocol: tcp
-        ToPort: '65535'
+        ToPort: 65535
       SecurityGroupIngress:
-      - FromPort: '80'
+      - FromPort: 80
         IpProtocol: tcp
         SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        ToPort: '80'
-      - FromPort: '443'
+        ToPort: 80
+      - FromPort: 443
         IpProtocol: tcp
         SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        ToPort: '443'
+        ToPort: 443
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-FE-SG
@@ -362,18 +362,18 @@ Resources:
       GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
       SecurityGroupEgress:
       - CidrIp: 0.0.0.0/0
-        FromPort: '0'
+        FromPort: 0
         IpProtocol: tcp
-        ToPort: '65535'
+        ToPort: 65535
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
-        FromPort: '80'
+        FromPort: 80
         IpProtocol: tcp
-        ToPort: '80'
+        ToPort: 80
       - CidrIp: 0.0.0.0/0
-        FromPort: '443'
+        FromPort: 443
         IpProtocol: tcp
-        ToPort: '443'
+        ToPort: 443
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-ELB-SG
@@ -419,7 +419,7 @@ Resources:
         Protocol: HTTPS
         TargetGroupAttributes:
           - Key: stickiness.enabled
-            Value: true
+            Value: 'true'
           - Key: stickiness.type
             Value: lb_cookie
         Tags:
@@ -612,7 +612,7 @@ Resources:
       Comment: !Sub Created by Cloudformation ${AWS::StackName}
       Name: !Sub ${Route53RecordName}.${Route53HostedZone}
       Type: CNAME
-      TTL: 900
+      TTL: '900'
       ResourceRecords:
       - !GetAtt ChefALB.DNSName
 
