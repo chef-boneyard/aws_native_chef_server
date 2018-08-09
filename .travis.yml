@@ -9,6 +9,7 @@ script:
 - aws cloudformation validate-template --template-body file://chef_rds.yaml
 - aws cloudformation validate-template --template-body file://automate.yaml
 - aws cloudformation validate-template --template-body file://chef_server_ha.yaml
+- aws cloudformation validate-template --template-body file://chef_server_ops_dashboard.yaml
 - aws cloudformation validate-template --template-body file://supermarket.yaml
 env:
   global:
