@@ -38,42 +38,16 @@ However, the most repeatable and least error-prone way to launch this stack is t
 ```bash
 MYBUCKET=aws-native-chef-server
 MYID=mycompany
+# Configure the automate_stack_parameters.json and then launch the cloudformation stack:
 # If you're using your own bucket, uncomment the next line:
-# aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*"
-
-# 1. Chef Automate
-# Configure the automate_stack_parameters.json and then launch the Automate Server:
-aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/automate.yaml && \
+# aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
+aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/main.yaml && \
 aws cloudformation create-stack \
-  --stack-name ${MYID}-automate-server \
-  --template-url https://s3.amazonaws.com/$MYBUCKET/automate.yaml \
+  --stack-name ${MYID}-chef-stack \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/main.yaml \
   --capabilities CAPABILITY_IAM \
   --on-failure DO_NOTHING \
-  --parameters file://automate_stack_parameters.json
-
-# 2. Chef Server HA
-# Configure the chef_stack_parameters.json -
-#   retrieve the ChefAutomateServerUrl and ChefAutomateToken parameters from the Automate server
-# and launch the Chef Server HA stack
-aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server_ha.yaml && \
-aws cloudformation create-stack \
-  --stack-name ${MYID}-chef-servers \
-  --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server_ha.yaml \
-  --capabilities CAPABILITY_IAM \
-  --on-failure DO_NOTHING \
-  --parameters file://chef_stack_parameters.json
-
-# 3. Chef Supermarket
-# Configure the supermarket_stack_parameters.json -
-#   retrieve the ChefUrl, ChefOAuth2AppId and ChefOAuth2Secret parameters from the Chef Servers
-#  and launch the Supermarket stack
-aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/supermarket.yaml && \
-aws cloudformation create-stack \
-  --stack-name ${MYID}-supermarket-server \
-  --template-url https://s3.amazonaws.com/$MYBUCKET/supermarket.yaml \
-  --capabilities CAPABILITY_IAM \
-  --on-failure DO_NOTHING \
-  --parameters file://supermarket_stack_parameters.json
+  --parameters file://stack_parameters.json
 ```
 
 ## Updating the stack
@@ -82,11 +56,13 @@ If you've made changes to the template content or parameters and you wish to upd
 
 ```bash
 MYBUCKET=aws-native-chef-server
-aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
-aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml && \
+MYID=mycompany
+# If you're using your own bucket, uncomment the next line:
+# aws s3 sync . s3://$MYBUCKET/ --exclude "*" --include "*.yaml" --include "files/*" && \
+aws cloudformation validate-template --template-url https://s3.amazonaws.com/$MYBUCKET/main.yaml && \
 aws cloudformation update-stack \
-  --stack-name chef-servers \
-  --template-url https://s3.amazonaws.com/$MYBUCKET/chef_server.yaml \
+  --stack-name ${MYID}-chef-stack \
+  --template-url https://s3.amazonaws.com/$MYBUCKET/main.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters file://stack_parameters.json
 ```

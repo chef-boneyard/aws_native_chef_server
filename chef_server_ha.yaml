@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server v4.0.0-alpha1
+Description: AWS Native Chef Server (auto-scaling HA) v4.0.0
 
 Parameters:
   # Required Parameters
@@ -14,12 +14,14 @@ Parameters:
     Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
     Type: List<AWS::EC2::Subnet::Id>
   SSLCertificateARN:
-    Default: 'arn:aws:iam::'
     Description: SSL Certficate ARN for SSL Certficate
     Type: String
   InboundAdminSecurityGroupId:
     Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
     Type: AWS::EC2::SecurityGroup::Id
+  ImageId:
+    Description: The AMI ID to be used for launching instances
+    Type: AWS::EC2::Image::Id
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: AWS::EC2::KeyPair::KeyName
@@ -33,13 +35,16 @@ Parameters:
   ContactDept:
     Description: Contact department for billing purposes
     Type: String
+  AlertNotificationTopic:
+    Description: AWS SNS Alert notification topic
+    Type: String
   ###############################################################################
   # Performance Settings
   InstanceType:
     Description: EC2 Instance type for Chef Server Frontends (high-CPU recommended)
     Default: c5.large
     Type: String
-    AllowedValues: [t2.small, t2.medium, t2.large, t2.xlarge, t2.2xlarge,
+    AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
       m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge, m4.16xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
       c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge,
@@ -110,14 +115,6 @@ Parameters:
     Description: The URL to the push jobs server package which will be downloaded
     Type: String
     Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.8/el/7/opscode-push-jobs-server-2.2.8-1.el7.x86_64.rpm'
-  BeforeScriptLocation:
-    Description: The S3 location of the script which runs before the Main script (optional)
-    Type: String
-    Default: ''
-  AfterScriptLocation:
-    Description: The S3 location of the script which runs after the Main script (optional)
-    Type: String
-    Default: ''
   ###############################################################################
   # Security Settings
   LoadBalancerScheme:
@@ -130,11 +127,9 @@ Parameters:
   LoadBalancerSecurityGroupId:
     Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
-    Default: ''
   FrontendSecurityGroupId:
     Description: Supply a security group for your chef frontends (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
-    Default: ''
   ChefServerAssociatePublicIpAddress:
     Description: Assign public IP addresses to the Chef Servers or not
     Type: String
@@ -152,11 +147,9 @@ Parameters:
   ChefServerIamRole:
     Description: Supply an IAM Role for the Chef Servers (leave blank to have it created for you). NOTE If you supply your own role, you must also provide an S3 Bucket which that role can access
     Type: String
-    Default: ''
   ChefSecretsBucket:
     Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
     Type: String
-    Default: ''
   ###############################################################################
   # Other Settings
   ChefAutomateServerUrl:
@@ -188,71 +181,14 @@ Parameters:
     Type: Number
     Default: 90
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
-  AMIfromSSM:
-    Description: AMI ID retrieved from an SSM parameter
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
 
 Metadata:
   cfn-lint:
     config:
       ignore_checks:
         - W2507
-  AWS::CloudFormation::Interface:
-    ParameterGroups:
-      - Label:
-          default: "Required Parameters"
-        Parameters:
-          - VPC
-          - ChefServerSubnets
-          - SSLCertificateARN
-          - InboundAdminSecurityGroupId
-          - KeyName
-          - DBPassword
-          - ContactEmail
-          - ContactDept
-      - Label:
-          default: "Performance Settings"
-        Parameters:
-          - InstanceType
-          - MaxFrontendInstances
-          - MinFrontendInstances
-          - LicenseCount
-          - DBInstanceClass
-          - DBAllocatedStorage
-          - DBIops
-          - ElasticSearchInstanceType
-          - ElasticSearchVersion
-          - ElasticSearchShardCount
-          - ElasticSearchReplicaCount
-      - Label:
-          default: "Package Versions & Locations"
-        Parameters:
-          - ChefServerPackage
-          - ChefManagePackage
-          - PushJobsPackage
-          - BeforeScriptLocation
-          - AfterScriptLocation
-      - Label:
-          default: "Security Settings"
-        Parameters:
-          - LoadBalancerScheme
-          - LoadBalancerSecurityGroupId
-          - FrontendSecurityGroupId
-          - ChefServerAssociatePublicIpAddress
-          - DisableSignup
-          - ChefServerIamRole
-          - ChefSecretsBucket
 
 Conditions:
-  CreateChefServerIamRole:
-    !Equals [ !Ref ChefServerIamRole, '' ]
-  CreateChefSecretsBucket:
-    !Equals [ !Ref ChefSecretsBucket, '' ]
-  CreateLoadBalancerSecurityGroup:
-    !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
-  CreateFrontendSecurityGroup:
-    !Equals [ !Ref FrontendSecurityGroupId, '' ]
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
 
@@ -340,134 +276,12 @@ Resources:
       Cooldown: '60'
       ScalingAdjustment: -1
 
-  ChefBucket:
-    Condition: CreateChefSecretsBucket
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    Properties:
-      AccessControl: Private
-      VersioningConfiguration:
-        Status: Enabled
-
   ChefInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Path: /
       Roles:
-      - !If [CreateChefServerIamRole, !Ref ChefRole, !Ref ChefServerIamRole]
-
-  ChefRole:
-    Condition: CreateChefServerIamRole
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-        - Action:
-          - sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - ec2.amazonaws.com
-        Version: '2012-10-17'
-      Path: /
-
-  RolePolicies:
-    Condition: CreateChefServerIamRole
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: !Sub ${AWS::StackName}-ChefServer-Policy
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        # Allow all actions to one bucket (the supplied one, or the one you provided)
-        - Action: s3:*
-          Effect: Allow
-          Resource:
-            - !Join ['', [ 'arn:aws:s3:::', !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] ]]
-            - !Join ['', [ 'arn:aws:s3:::', !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket], '/*' ]]
-        # Allow ability to list all buckets
-        - Action: s3:List*
-          Effect: Allow
-          Resource: arn:aws:s3:::*
-        # Allow instances to set themselves as unhealthy if one of the scripts fail
-        - Action: autoscaling:*
-          Effect: Allow
-          Resource: "*"
-        # Allow instances to read their own tags (needed for setup script below)
-        - Action: ec2:DescribeTags
-          Effect: Allow
-          Resource: "*"
-        - Action: cloudwatch:PutMetricData
-          Effect: Allow
-          Resource: "*"
-        - Action: cloudwatch:GetMetricStatistics
-          Effect: Allow
-          Resource: "*"
-        - Action: cloudwatch:ListMetrics
-          Effect: Allow
-          Resource: "*"
-        # Allow instances to write to cloudwatch logs
-        - Action: ["logs:PutLogEvents", "logs:CreateLogStream", "logs:CreateLogGroup"]
-          Effect: Allow
-          Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${AWS::StackName}*
-      Roles:
-      - !Ref ChefRole
-
-  FrontendSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Condition: CreateFrontendSecurityGroup
-    Properties:
-      GroupDescription: Setup Ingress/Egress for Chef Frontend
-      SecurityGroupEgress:
-      - CidrIp: 0.0.0.0/0
-        FromPort: 0
-        IpProtocol: tcp
-        ToPort: 65535
-      SecurityGroupIngress:
-      - FromPort: 80
-        IpProtocol: tcp
-        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        ToPort: 80
-      - FromPort: 443
-        IpProtocol: tcp
-        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        ToPort: 443
-      - FromPort: 10000
-        IpProtocol: tcp
-        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        ToPort: 10003
-      Tags:
-      - Key: Name
-        Value: !Sub ${AWS::StackName}-FE-SG
-      VpcId: !Ref VPC
-
-  LoadBalancerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Condition: CreateLoadBalancerSecurityGroup
-    Properties:
-      GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
-      SecurityGroupEgress:
-      - CidrIp: 0.0.0.0/0
-        FromPort: 0
-        IpProtocol: tcp
-        ToPort: 65535
-      SecurityGroupIngress:
-      - CidrIp: 0.0.0.0/0
-        FromPort: 80
-        IpProtocol: tcp
-        ToPort: 80
-      - CidrIp: 0.0.0.0/0
-        FromPort: 443
-        IpProtocol: tcp
-        ToPort: 443
-      - FromPort: 10000
-        IpProtocol: tcp
-        CidrIp: 0.0.0.0/0
-        ToPort: 10003
-      Tags:
-      - Key: Name
-        Value: !Sub ${AWS::StackName}-ELB-SG
-      VpcId: !Ref VPC
+      - !Ref ChefServerIamRole
 
   # A special ELB just for Push Jobs traffic (TCP ports 10000-10003)
   # Note: Push Jobs server isn't truly HA. Although job state is stored in the database,
@@ -478,7 +292,7 @@ Resources:
     Type: "AWS::ElasticLoadBalancing::LoadBalancer"
     Properties:
       SecurityGroups:
-        - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+        - !Ref LoadBalancerSecurityGroupId
       Subnets: !Ref ChefServerSubnets
       Scheme: !Ref LoadBalancerScheme
       Listeners:
@@ -493,7 +307,7 @@ Resources:
           Protocol: TCP
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-pushjobs-lb
+          Value: chef-server-pushjobs
         - Key: X-Dept
           Value: !Ref ContactDept
         - Key: X-Contact
@@ -502,15 +316,16 @@ Resources:
   ChefALB:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
-      Name: !Sub ${AWS::StackName}-lb
       SecurityGroups:
-        - !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+        - !Ref LoadBalancerSecurityGroupId
       Subnets: !Ref ChefServerSubnets
       # IpAddressType: dualstack
       Scheme: !Ref LoadBalancerScheme
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-lb
+          Value: !Sub chef-${AWS::StackName}
+        - Key: StackName
+          Value: !Sub ${AWS::StackName}
         - Key: X-Dept
           Value: !Ref ContactDept
         - Key: X-Contact
@@ -588,17 +403,17 @@ Resources:
       AssociatePublicIpAddress: !Ref ChefServerAssociatePublicIpAddress
       EbsOptimized: true
       BlockDeviceMappings:
-      - DeviceName: /dev/xvda
+      - DeviceName: /dev/sda1
         Ebs:
           VolumeSize: 20
           VolumeType: gp2
           DeleteOnTermination: true
       IamInstanceProfile: !Ref ChefInstanceProfile
-      ImageId: !Ref AMIfromSSM
+      ImageId: !Ref ImageId
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       SecurityGroups:
-      - !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+      - !Ref FrontendSecurityGroupId
       - !Ref InboundAdminSecurityGroupId
       UserData:
         "Fn::Base64": !Sub |
@@ -609,7 +424,7 @@ Resources:
             # aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
           }" ERR
           # Update the system first
-          yum upgrade -y
+          yum upgrade --exclude="kernel*" --exclude="dracut*" -y
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
           # All is well so signal success and let CF know wait function is complete
@@ -624,7 +439,7 @@ Resources:
               source: https://github.com/chef-customers/aws-signing-proxy/releases/download/v0.5.0/aws-signing-proxy
               mode: '000755'
             /etc/systemd/system/aws-signing-proxy.service:
-              content: !Sub |
+              content: |
                 [Unit]
                 Description=aws-signing-proxy
                 After=network.target
@@ -670,8 +485,9 @@ Resources:
               content: !Sub |
                 disable_sign_up ${DisableSignup}
             /etc/opscode/chef-server.rb:
-              content: !Sub |
-                api_fqdn '${ChefALB.DNSName}'.downcase
+              content: !Sub
+              - |
+                api_fqdn '${DNSNAME}'.downcase
                 nginx['enable_non_ssl'] = true
                 license['nodes'] = ${LicenseCount}
                 postgresql['external'] = true
@@ -703,7 +519,7 @@ Resources:
                 bookshelf['storage_type'] = :sql
                 bookshelf['db_pool_init'] = 10
                 bookshelf['db_pool_max'] = 20
-                bookshelf['vip'] = '${ChefALB.DNSName}'.downcase
+                bookshelf['vip'] = '${DNSNAME}'.downcase
                 rabbitmq['enable'] = false
                 rabbitmq['management_enabled'] = false
                 rabbitmq['queue_length_monitor_enabled'] = false
@@ -719,37 +535,50 @@ Resources:
                   data_collector['root_url'] = '${ChefAutomateServerUrl}'
                   data_collector['token'] = '${ChefAutomateToken}'
                 end
+              - { DNSNAME: !If [CreateRoute53Record, !Sub "${Route53RecordName}.${Route53HostedZone}", !GetAtt ChefALB.DNSName] }
+            /etc/sysctl.d/00-chef.conf:
+              content: |
+                vm.swappiness=10
+                vm.max_map_count=262144
+                vm.dirty_ratio=20
+                vm.dirty_background_ratio=30
+                vm.dirty_expire_centisecs=30000
+            /etc/security/limits.d/20-nproc.conf:
+              content: |
+                *   soft  nproc     65536
+                *   hard  nproc     65536
+                *   soft  nofile    1048576
+                *   hard  nofile    1048576
           commands:
             02_before_script:
               command: !Sub |
-                if [ -n '${BeforeScriptLocation}' ]; then
-                    aws s3 cp ${BeforeScriptLocation} /root/before.sh
-                    bash -x /root/before.sh
-                fi
+                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
+                aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
+                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/before.sh /root/before.sh
+                bash -x /root/before.sh
                 if [ -n '${ChefServerCustomConfig}' ]; then
                     aws s3 cp ${ChefServerCustomConfig} /etc/opscode/chef-server-custom.rb
                     echo "# Appended from chef-server-custom.rb" >> /etc/opscode/chef-server.rb
                     cat /etc/opscode/chef-server-custom.rb >> /etc/opscode/chef-server.rb
                 fi
+                sysctl -p /etc/sysctl.d/00-chef.conf
             03_configure_chef_server:
-              command: !Sub
-              - |
+              command: !Sub |
                 export STACKNAME=${AWS::StackName}
-                export BUCKET=${S3BUCKET}
+                export BUCKET=${ChefSecretsBucket}
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
-                # don't sign the request as a workaround to download object from a third party public bucket
-                aws s3 cp --no-sign-request s3://${AutomationBucket}/files/main.sh /root/main.sh
+                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
+                aws s3 cp s3://${AutomationBucket}/files/main.sh /root/main.sh || \
+                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/main.sh /root/main.sh
                 bash -x /root/main.sh
-              - { S3BUCKET: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ChefSecretsBucket] }
             04_after_script:
               command: !Sub |
-                if [ -n '${AfterScriptLocation}' ]; then
-                  aws s3 cp ${AfterScriptLocation} /root/after.sh
-                  bash -x /root/after.sh
-                fi
+                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
+                aws s3 cp s3://${AutomationBucket}/files/after.sh /root/after.sh || \
+                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/after.sh /root/after.sh
             05_configure_cloudwatch_monitoring:
-              command: !Sub |
+              command: |
                 mkdir /opt/cloudwatch_monitoring
                 cd /opt/cloudwatch_monitoring
                 curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
@@ -757,10 +586,10 @@ Resources:
                 rm CloudWatchMonitoringScripts-1.2.1.zip
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
         awslogs:
-          packages:
-            yum:
-              awslogs: []
           files:
+            /root/awslogs-agent-setup.py:
+              source: 'https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py'
+              mode: '000755'
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [default]
@@ -804,10 +633,6 @@ Resources:
                 file = /var/log/cfn-init-cmd.log
                 log_stream_name = {instance_id}
                 log_group_name = ${VarLogCfnInitCmdLog}
-                [/var/log/cloud-init-output.log]
-                file = /var/log/cloud-init-output.log
-                log_stream_name = {instance_id}
-                log_group_name = ${VarLogCloudInitOutputLog}
                 [/var/log/dmesg]
                 file = /var/log/dmesg
                 log_stream_name = {instance_id}
@@ -868,15 +693,17 @@ Resources:
               owner: root
               group: root
           commands:
-            01_systemd:
-              command: systemctl daemon-reload && systemctl start awslogsd.service
+            01_setup:
+              command: !Sub |
+                mkdir -p /var/lib/awslogs
+                python /root/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
         filebeat:
           packages:
             rpm:
               filebeat: https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-5.6.6-x86_64.rpm
           files:
             /etc/filebeat/filebeat.yml:
-              content: !Sub |
+              content: |
                 filebeat.prospectors:
                 - input_type: log
                   paths:
@@ -922,7 +749,7 @@ Resources:
         DBInstanceClass: !Ref DBInstanceClass
         DBAllocatedStorage: !Ref DBAllocatedStorage
         DBIops: !Ref DBIops
-        FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+        FrontendSecurityGroupId: !Ref FrontendSecurityGroupId
         AlertNotificationTopic: !Ref AlertNotificationTopic
 
 # ElasticSearch
@@ -939,9 +766,8 @@ Resources:
         ElasticSearchInstanceType: !Ref ElasticSearchInstanceType
         ElasticSearchVersion: !Ref ElasticSearchVersion
         ElasticSearchShardCount: !Ref ElasticSearchShardCount
-        ElasticSearchReplicaCount: !Ref ElasticSearchReplicaCount
-        FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
-        ChefRole: !If [CreateChefServerIamRole, !GetAtt ChefRole.Arn, !Sub "arn:aws:iam::${AWS::AccountId}:role/${ChefServerIamRole}"]
+        FrontendSecurityGroupId: !Ref FrontendSecurityGroupId
+        ChefRole: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ChefServerIamRole}"
         AlertNotificationTopic: !Ref AlertNotificationTopic
 
 # Route 53 Record
@@ -1082,13 +908,6 @@ Resources:
 
 # Monitoring
 #########################################################################################
-  AlertNotificationTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      Subscription:
-        - Endpoint:
-            !Ref ContactEmail
-          Protocol: email
 
   DiskSpaceUtilization:
     Type: AWS::CloudWatch::Alarm
@@ -1178,7 +997,6 @@ Resources:
         - Name: Filesystem
           Value: /dev/nvme0n1p1
 
-
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -1248,5 +1066,12 @@ Resources:
         - Name: AutoScalingGroupName
           Value: !Ref FrontendAutoScaleGroup
 
-
-Outputs: {}
+Outputs:
+  DNSName:
+    Description: The DNS name of the load balancer
+    Value: !If [CreateRoute53Record, !Sub "${Route53RecordName}.${Route53HostedZone}", !GetAtt ChefALB.DNSName]
+    Export:
+      Name: !Sub "${AWS::StackName}-DNSName"
+  StackName:
+    Description: The name of this stack, as an export
+    Value: !Ref AWS::StackName
