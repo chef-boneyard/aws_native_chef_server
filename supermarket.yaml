@@ -205,12 +205,14 @@ Resources:
         "Fn::Base64": !Sub |
           #!/bin/bash -ex
           trap '/opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource SupermarketServer' ERR
+          # Update the system first
+          yum upgrade --exclude="kernel*" --exclude="dracut*" -y
           # Run before script, make sure to install cfn-init if not installed
           # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
           aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
-            aws s3 cp --no-sign-request s3://${AutomationBucket}/files/before.sh /root/before.sh
-          bash -x /root/before.sh
-          yum upgrade --exclude="kernel*" --exclude="dracut*" -y
+            curl -s https://${AutomationBucket}.s3.amazonaws.com/files/before.sh -o /root/before.sh || \
+            curl -s https://sce-pub.s3.amazonaws.com/files/before.sh -o /root/before.sh
+          bash -ex /root/before.sh
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource SupermarketServer --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource SupermarketServer
@@ -227,9 +229,7 @@ Resources:
             rpm:
               supermarket: !Sub ${SupermarketPackage}
             yum:
-              jq: []
               perl: []
-              perl-Switch: []
               perl-DateTime: []
               perl-Sys-Syslog: []
               perl-LWP-Protocol-https: []
@@ -240,6 +240,10 @@ Resources:
             02_write_supermarket_json:
               command: !Sub
               - |
+                yum install -y jq || \
+                  rpm -ivh \
+                    https://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/o/oniguruma-5.9.5-3.el7.x86_64.rpm \
+                    https://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/j/jq-1.5-1.el7.x86_64.rpm
                 aws s3 cp s3://${ChefSecretsBucket}/${ChefStackName}/etc_opscode/oc-id-applications/supermarket.json /tmp/supermarket.json
                 OAUTH2_APP_ID=$(cat /tmp/supermarket.json | jq -r ".uid")
                 OAUTH2_SECRET=$(cat /tmp/supermarket.json | jq -r ".secret")
@@ -258,15 +262,16 @@ Resources:
               command: !Sub |
                 # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
                 aws s3 cp s3://${AutomationBucket}/files/after.sh /root/after.sh || \
-                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/after.sh /root/after.sh
+                  curl -s https://${AutomationBucket}.s3.amazonaws.com/files/after.sh -o /root/after.sh
+                bash -ex /root/after.sh
             05_configure_cloudwatch_monitoring:
               command: |
                 mkdir /opt/cloudwatch_monitoring
                 cd /opt/cloudwatch_monitoring
                 curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
                 unzip CloudWatchMonitoringScripts-1.2.1.zip
-                rm CloudWatchMonitoringScripts-1.2.1.zip
-                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
+                rm -f CloudWatchMonitoringScripts-1.2.1.zip
+                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
         nightly_snapshots:
           files:
             /usr/local/bin/ebs-snapshot.sh:
@@ -457,24 +462,6 @@ Resources:
       - Name: InstanceId
         Value: !Ref SupermarketServer
 
-  DiskSpaceUtilization:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub DiskSpaceUtilization-${AWS::StackName}
-      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
-      AlarmActions: [!Ref AlertNotificationTopic]
-      MetricName: DiskSpaceUtilization
-      Namespace: System/Linux
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      EvaluationPeriods: 2
-      Period: 300
-      Statistic: Average
-      Threshold: 80
-      Unit: Percent
-      Dimensions:
-      - Name: InstanceId
-        Value: !Ref SupermarketServer
-
   DiskSpaceUtilizationNvme:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -492,6 +479,10 @@ Resources:
       Dimensions:
       - Name: InstanceId
         Value: !Ref SupermarketServer
+      - Name: MountPath
+        Value: '/'
+      - Name: Filesystem
+        Value: /dev/nvme0n1p1
 
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm
@@ -528,4 +519,9 @@ Resources:
         - Name: LoadBalancer
           Value: !GetAtt ChefALB.LoadBalancerFullName
 
-Outputs: {}
+Outputs:
+  DNSName:
+    Description: The DNS name of the load balancer
+    Value: !If [CreateRoute53Record, !Sub "${Route53RecordName}.${Route53HostedZone}", !GetAtt ChefALB.DNSName]
+    Export:
+      Name: !Sub "${AWS::StackName}-DNSName"

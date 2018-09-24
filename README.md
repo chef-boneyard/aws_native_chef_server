@@ -1,9 +1,12 @@
-# AWS Native Chef Server Cluster
-A Chef Server cluster utilizing Amazon services for high availability, auto-scaling and DBaaS
+# AWS Native Chef Stack
+A complete Chef Stack including:
+- Chef Automate 2 server, using EC2 Auto-Recovery
+- Chef Server cluster utilizing Amazon services for high availability, auto-scaling and DBaaS
+- Chef Supermarket server, using EC2 Auto-Recovery
 
 ![Chef Server Architecture Diagram](/images/arch-diagram.png?raw=true "Architecture Diagram")
 
-# What does this template provision?
+# What does the chef_server_ha template provision?
 - A "bootstrap" frontend in an Auto Scaling Group of 1.
 - A second frontend in an Auto Scaling Group that will automatically scale up to a configured maximum (default 3)
 - A Multi-AZ Elastic Load Balancer
@@ -14,13 +17,13 @@ A Chef Server cluster utilizing Amazon services for high availability, auto-scal
 
 ![Dashboard Example](/images/opsdashboard.png?raw=true "Architecture Diagram")
 
-
 # Using it
 
 ## Requirements
 * A working knowledge and comfort level with CloudFormation so that you can read and understand this template for your self
 * Permissions to create all of the types of resources specified in this template (IAM roles, Database subnets, etc)
 * A valid SSL certificate ARN (from the AWS Certificate Manager service)
+* A Route53 hosted zone (optional but strongly recommended)
 
 ## Prerequisites
 
@@ -31,7 +34,7 @@ Before you fire it up, there are a few things you should make sure you have prep
 ## Fire up the Chef Server stack
 
 You can launch this stack with the push of a button:
-<p><a href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?templateURL=https:%2F%2Fs3.amazonaws.com%2Faws-native-chef-server%2Fbackendless_chef.yaml&amp;stackName=my-chef-cluster" target="_blank"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png" alt="Launch Stack" /></a></p>
+<p><a href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?templateURL=https:%2F%2Fs3.amazonaws.com%2Faws-native-chef-server%2Fmain.yaml&amp;stackName=my-chef-stack" target="_blank"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png" alt="Launch Stack" /></a></p>
 
 However, the most repeatable and least error-prone way to launch this stack is to use the `aws` command-line. First copy file `stack_parameters.json.example` to `stack_parameters.json`, make the necessary changes, then run this command:
 
@@ -74,12 +77,12 @@ Note: For production instances it is recommended to use the CloudFormation conso
 If you're using a bastion host and need to SSH from the outside:
 
 ```bash
-ssh -o ProxyCommand="ssh -W %h:%p -q ec2-user@bastion" -l ec2-user <chef server private ip>
+ssh -o ProxyCommand="ssh -W %h:%p -q user@bastion" -l centos <chef server private ip>
 ```
 
-otherwise just login as `ec2-user` to the private IPs of the chef servers
+otherwise just login as `centos` to the private IPs of the chef servers
 
-## Upgrading
+## Upgrading the Chef Server
 
 If a new Chef Server or Manage package comes out, the process for upgrading is simple and requires no downtime:
 
@@ -117,11 +120,6 @@ Yes, it is significantly more robust and easier to operate.
 - Add Chef Automate as part of the deployment ([WIP](https://github.com/chef-customers/aws_native_chef_server/pull/37))
 
 Contributions are welcomed!
-
-# Developer notes
-
-## AMIfromSSM
-Credit to: https://forums.aws.amazon.com/thread.jspa?threadID=280772&tstart=0
 
 # Credits
 

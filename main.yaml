@@ -442,7 +442,7 @@ Resources:
         DataVolumeSize: !Ref AutomateDataVolumeSize
         AutomateDataCollectorToken: !Ref ChefAutomateToken
         LoadBalancerScheme: !Ref LoadBalancerScheme
-        LoadBalancerSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+        LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         AutomateIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
         Route53HostedZone: !If [CreateRoute53Record, !Ref Route53HostedZone, '']
@@ -478,7 +478,7 @@ Resources:
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount
         ElasticSearchReplicaCount: !Ref ChefElasticSearchReplicaCount
         LoadBalancerScheme: !Ref LoadBalancerScheme
-        LoadBalancerSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+        LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         ChefServerAssociatePublicIpAddress: !Ref AssociatePublicIpAddress
         ChefServerIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
@@ -513,7 +513,7 @@ Resources:
         InstanceType: !Ref SupermarketInstanceType
         DataVolumeSize: !Ref SupermarketDataVolumeSize
         LoadBalancerScheme: !Ref LoadBalancerScheme
-        LoadBalancerSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+        LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         SupermarketIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
         ChefSecretsBucket: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket]
@@ -522,4 +522,22 @@ Resources:
         Route53RecordName: !Ref SupermarketDnsRecordName
         AlertNotificationTopic: !Ref AlertNotificationTopic
 
-Outputs: {}
+Outputs:
+  AutomateUrl:
+    Description: The URL of the Chef Automate Server
+    Value: !Sub "https://${AutomateStack.Outputs.DNSName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-AutomateURL"
+  ChefServerUrl:
+    Description: The URL of the Chef Automate Server
+    Value: !Sub "https://${ChefServerStack.Outputs.DNSName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ChefServerURL"
+  SupermarketUrl:
+    Description: The URL of the Chef Automate Server
+    Value: !Sub "https://${SupermarketStack.Outputs.DNSName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-SupermarketURL"
+  AutomateAdminPassword:
+    Description: The password for the Chef Automate admin user
+    Value: !Sub "To retrieve, run: ssh centos@${AutomateStack.Outputs.ServerIP} sudo cat /root/automate-credentials.toml"

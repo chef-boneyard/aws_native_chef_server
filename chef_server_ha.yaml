@@ -417,7 +417,7 @@ Resources:
       - !Ref InboundAdminSecurityGroupId
       UserData:
         "Fn::Base64": !Sub |
-          #!/bin/bash -e
+          #!/bin/bash -ex
           trap "{
             /opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource ServerLaunchConfig
             # Uncomment this next line before going to production
@@ -425,6 +425,12 @@ Resources:
           }" ERR
           # Update the system first
           yum upgrade --exclude="kernel*" --exclude="dracut*" -y
+          # Run before script, make sure to install cfn-init if not installed
+          # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
+          aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
+            curl -s https://${AutomationBucket}.s3.amazonaws.com/files/before.sh -o /root/before.sh || \
+            curl -s https://sce-pub.s3.amazonaws.com/files/before.sh -o /root/before.sh
+          bash -ex /root/before.sh
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
           # All is well so signal success and let CF know wait function is complete
@@ -469,7 +475,6 @@ Resources:
               opscode-push-jobs-server: !Sub ${PushJobsPackage}
             yum:
               perl: []
-              perl-Switch: []
               perl-DateTime: []
               perl-Sys-Syslog: []
               perl-LWP-Protocol-https: []
@@ -552,16 +557,12 @@ Resources:
           commands:
             02_before_script:
               command: !Sub |
-                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
-                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/before.sh /root/before.sh
-                bash -x /root/before.sh
+                sysctl -p /etc/sysctl.d/00-chef.conf
                 if [ -n '${ChefServerCustomConfig}' ]; then
                     aws s3 cp ${ChefServerCustomConfig} /etc/opscode/chef-server-custom.rb
                     echo "# Appended from chef-server-custom.rb" >> /etc/opscode/chef-server.rb
                     cat /etc/opscode/chef-server-custom.rb >> /etc/opscode/chef-server.rb
                 fi
-                sysctl -p /etc/sysctl.d/00-chef.conf
             03_configure_chef_server:
               command: !Sub |
                 export STACKNAME=${AWS::StackName}
@@ -576,14 +577,15 @@ Resources:
               command: !Sub |
                 # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
                 aws s3 cp s3://${AutomationBucket}/files/after.sh /root/after.sh || \
-                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/after.sh /root/after.sh
+                  curl -s https://${AutomationBucket}.s3.amazonaws.com/files/after.sh -o /root/after.sh
+                bash -ex /root/after.sh
             05_configure_cloudwatch_monitoring:
               command: |
                 mkdir /opt/cloudwatch_monitoring
                 cd /opt/cloudwatch_monitoring
                 curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
                 unzip CloudWatchMonitoringScripts-1.2.1.zip
-                rm CloudWatchMonitoringScripts-1.2.1.zip
+                rm -f CloudWatchMonitoringScripts-1.2.1.zip
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
         awslogs:
           files:

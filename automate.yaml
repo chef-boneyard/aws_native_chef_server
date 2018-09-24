@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Automate (auto-recovering standalone) v4.0.0
+Description: AWS Native Automate 2 (auto-recovering standalone) v4.0.0
 
 Parameters:
   # Required Parameters
@@ -50,16 +50,6 @@ Parameters:
     Description: Amount of storage space to allocate on a dedicated data volume (must be between 500 and 16000)
     Type: Number
     Default: 1000
-  ###############################################################################
-  # Package Versions & Locations
-  # BeforeScriptLocation:
-  #   Description: The S3 location of the script which runs before the Main script (optional)
-  #   Type: String
-  #   Default: ''
-  # AfterScriptLocation:
-  #   Description: The S3 location of the script which runs after the Main script (optional)
-  #   Type: String
-  #   Default: ''
   ###############################################################################
   # Security Settings
   AutomateDataCollectorToken:
@@ -205,6 +195,12 @@ Resources:
           trap '/opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource AutomateServer' ERR
           # Update the system first
           yum upgrade --exclude="kernel*" --exclude="dracut*" -y
+          # Run before script, make sure to install cfn-init if not installed
+          # attempt to fetch the script first as a signed request (private bucket), then unsigned, then fallback
+          aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
+            curl -s https://${AutomationBucket}.s3.amazonaws.com/files/before.sh -o /root/before.sh || \
+            curl -s https://sce-pub.s3.amazonaws.com/files/before.sh -o /root/before.sh
+          bash -ex /root/before.sh
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource AutomateServer --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource AutomateServer
@@ -219,8 +215,9 @@ Resources:
         automate_setup:
           packages:
             yum:
+              lvm2: []
+              xfsprogs: []
               perl: []
-              perl-Switch: []
               perl-DateTime: []
               perl-Sys-Syslog: []
               perl-LWP-Protocol-https: []
@@ -338,12 +335,7 @@ Resources:
                 *   hard  nofile    1048576
           commands:
             02_before_script:
-              command: !Sub |
-                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
-                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/before.sh /root/before.sh
-                bash -x /root/before.sh
-
+              command: |
                 sysctl -p /etc/sysctl.d/00-chef.conf
                 mkdir -p /hab
                 pvs | grep nvme1n1 || pvcreate /dev/nvme1n1
@@ -359,15 +351,17 @@ Resources:
               command: !Sub |
                 # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
                 aws s3 cp s3://${AutomationBucket}/files/after.sh /root/after.sh || \
-                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/after.sh /root/after.sh
+                  curl -s https://${AutomationBucket}.s3.amazonaws.com/files/after.sh -o /root/after.sh
+                bash -ex /root/after.sh
             05_configure_cloudwatch_monitoring:
               command: |
                 mkdir /opt/cloudwatch_monitoring
                 cd /opt/cloudwatch_monitoring
-                curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
+                curl -s -O http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip
                 unzip CloudWatchMonitoringScripts-1.2.1.zip
-                rm CloudWatchMonitoringScripts-1.2.1.zip
-                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
+                rm -f CloudWatchMonitoringScripts-1.2.1.zip
+                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
+                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --disk-space-util --disk-path=/hab --from-cron"; } | crontab -
         nightly_snapshots:
           files:
             /usr/local/bin/ebs-snapshot.sh:
@@ -576,6 +570,28 @@ Resources:
       - Name: Filesystem
         Value: /dev/nvme0n1p1
 
+  DiskSpaceUtilizationDataDisk:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub DiskSpaceUtilizationDataDisk-${AWS::StackName}
+      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: DiskSpaceUtilization
+      Namespace: System/Linux
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
+      Unit: Percent
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref AutomateServer
+      - Name: MountPath
+        Value: '/hab'
+      - Name: Filesystem
+        Value: '/dev/mapper/data--vg-data--lv'
+
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -617,3 +633,6 @@ Outputs:
     Value: !If [CreateRoute53Record, !Sub "${Route53RecordName}.${Route53HostedZone}", !GetAtt ChefALB.DNSName]
     Export:
       Name: !Sub "${AWS::StackName}-DNSName"
+  ServerIP:
+    Description: The IP Address of the Automate Server
+    Value: !GetAtt AutomateServer.PublicIp
