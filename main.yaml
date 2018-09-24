@@ -239,8 +239,6 @@ Conditions:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
   RHELAmiFlavor:
     !Equals [ !Ref AMIFlavor, 'rhel' ]
-  # CentOSAmiFlavor:
-  #   !Equals [ !Ref AMIFlavor, 'centos' ]
 
 # Periodically regenerate this list using the 'generate_os_mappings.sh' script
 Mappings:
@@ -447,6 +445,7 @@ Resources:
         AutomateIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
         Route53HostedZone: !If [CreateRoute53Record, !Ref Route53HostedZone, '']
         Route53RecordName: !Ref AutomateDnsRecordName
+        AMIFlavor: !Ref AMIFlavor
         AlertNotificationTopic: !Ref AlertNotificationTopic
 
 # Chef Server Stack
@@ -487,6 +486,7 @@ Resources:
         ChefAutomateToken: !Ref ChefAutomateToken
         Route53HostedZone: !If [CreateRoute53Record, !Ref Route53HostedZone, '']
         Route53RecordName: !Ref ChefServerDnsRecordName
+        AMIFlavor: !Ref AMIFlavor
         AlertNotificationTopic: !Ref AlertNotificationTopic
 
 # Supermarket Stack
@@ -520,6 +520,7 @@ Resources:
         ChefStackName: !GetAtt ChefServerStack.Outputs.StackName
         Route53HostedZone: !If [CreateRoute53Record, !Ref Route53HostedZone, '']
         Route53RecordName: !Ref SupermarketDnsRecordName
+        AMIFlavor: !Ref AMIFlavor
         AlertNotificationTopic: !Ref AlertNotificationTopic
 
 Outputs:

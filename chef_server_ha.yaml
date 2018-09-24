@@ -45,9 +45,7 @@ Parameters:
     Default: c5.large
     Type: String
     AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
-      m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge, m4.16xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
-      c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge,
       c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
   MaxFrontendInstances:
     Description: The maximum number of additional frontend instances to launch
@@ -181,6 +179,13 @@ Parameters:
     Type: Number
     Default: 90
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+  AMIFlavor:
+    Description: Choose the AMI Flavor, the High-Perf CentOS image or the stock and paid official RHEL image
+    Type: String
+    Default: 'centos'
+    AllowedValues:
+    - 'centos'
+    - 'rhel'
 
 Metadata:
   cfn-lint:
@@ -191,6 +196,8 @@ Metadata:
 Conditions:
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
+  RHELAmiFlavor:
+    !Equals [ !Ref AMIFlavor, 'rhel' ]
 
 Resources:
 # Frontend Autoscale Groups
@@ -910,51 +917,6 @@ Resources:
 
 # Monitoring
 #########################################################################################
-
-  DiskSpaceUtilization:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub DiskSpaceUtilization-${AWS::StackName}
-      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
-      AlarmActions: [!Ref AlertNotificationTopic]
-      MetricName: DiskSpaceUtilization
-      Namespace: System/Linux
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      EvaluationPeriods: 2
-      Period: 300
-      Statistic: Average
-      Threshold: 80
-      Unit: Percent
-      Dimensions:
-        - Name: AutoScalingGroupName
-          Value: !Ref FrontendAutoScaleGroup
-        - Name: MountPath
-          Value: '/'
-        - Name: Filesystem
-          Value: /dev/xvda1
-
-  BootstrapDiskSpaceUtilization:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub DiskSpaceUtilization-bootstrap-${AWS::StackName}
-      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
-      AlarmActions: [!Ref AlertNotificationTopic]
-      MetricName: DiskSpaceUtilization
-      Namespace: System/Linux
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      EvaluationPeriods: 2
-      Period: 300
-      Statistic: Average
-      Threshold: 80
-      Unit: Percent
-      Dimensions:
-        - Name: AutoScalingGroupName
-          Value: !Ref BootstrapAutoScaleGroup
-        - Name: MountPath
-          Value: '/'
-        - Name: Filesystem
-          Value: /dev/xvda1
-
   DiskSpaceUtilizationNvme:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -975,7 +937,7 @@ Resources:
         - Name: MountPath
           Value: '/'
         - Name: Filesystem
-          Value: /dev/nvme0n1p1
+          Value: !If [RHELAmiFlavor, "/dev/nvme0n1p2", "/dev/nvme0n1p1"]
 
   BootstrapDiskSpaceUtilizationNvme:
     Type: AWS::CloudWatch::Alarm
@@ -997,7 +959,7 @@ Resources:
         - Name: MountPath
           Value: '/'
         - Name: Filesystem
-          Value: /dev/nvme0n1p1
+          Value: !If [RHELAmiFlavor, "/dev/nvme0n1p2", "/dev/nvme0n1p1"]
 
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm

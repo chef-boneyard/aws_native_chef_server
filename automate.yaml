@@ -87,6 +87,13 @@ Parameters:
     Type: Number
     Default: 90
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+  AMIFlavor:
+    Description: Choose the AMI Flavor, the High-Perf CentOS image or the stock and paid official RHEL image
+    Type: String
+    Default: 'centos'
+    AllowedValues:
+    - 'centos'
+    - 'rhel'
 
 Metadata:
   cfn-lint:
@@ -97,6 +104,8 @@ Metadata:
 Conditions:
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
+  RHELAmiFlavor:
+    !Equals [ !Ref AMIFlavor, 'rhel' ]
 
 Resources:
   AutomateInstanceProfile:
@@ -568,7 +577,7 @@ Resources:
       - Name: MountPath
         Value: '/'
       - Name: Filesystem
-        Value: /dev/nvme0n1p1
+        Value: !If [RHELAmiFlavor, "/dev/nvme0n1p2", "/dev/nvme0n1p1"]
 
   DiskSpaceUtilizationDataDisk:
     Type: AWS::CloudWatch::Alarm
