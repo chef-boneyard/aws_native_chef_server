@@ -77,10 +77,11 @@ Note: For production instances it is recommended to use the CloudFormation conso
 If you're using a bastion host and need to SSH from the outside:
 
 ```bash
-ssh -o ProxyCommand="ssh -W %h:%p -q user@bastion" -l centos <chef server private ip>
+ssh -o ProxyCommand="ssh -W %h:%p -q user@bastion" -l user <chef server private ip>
 ```
+Where "user" is `ec2-user` on the RHEL AMI, and `centos` on the CentOS AMI
 
-otherwise just login as `centos` to the private IPs of the chef servers
+otherwise just SSH directly to the public IPs of the chef servers
 
 ## Upgrading the Chef Server
 

@@ -174,6 +174,11 @@ Parameters:
     AllowedValues:
     - 'centos'
     - 'rhel'
+  LogsRetentionInDays:
+    Description: Specifies the number of days you want to retain cloudwatch log events.
+    Type: Number
+    Default: 90
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
 
 Metadata:
   cfn-lint:
@@ -416,6 +421,28 @@ Resources:
             !Ref ContactEmail
           Protocol: email
 
+# Logging Groups (Cloudwatch Logs)
+#########################################################################################
+  SystemLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  ChefAppLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  SupermarketAppLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  AutomateAppLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
 # Automate Stack
 #########################################################################################
   AutomateStack:
@@ -436,6 +463,7 @@ Resources:
         KeyName: !Ref KeyName
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
+        AlertNotificationTopic: !Ref AlertNotificationTopic
         InstanceType: !Ref AutomateInstanceType
         DataVolumeSize: !Ref AutomateDataVolumeSize
         AutomateDataCollectorToken: !Ref ChefAutomateToken
@@ -446,7 +474,8 @@ Resources:
         Route53HostedZone: !If [CreateRoute53Record, !Ref Route53HostedZone, '']
         Route53RecordName: !Ref AutomateDnsRecordName
         AMIFlavor: !Ref AMIFlavor
-        AlertNotificationTopic: !Ref AlertNotificationTopic
+        SystemLogsGroup: !Ref SystemLogs
+        AppLogsGroup: !Ref AutomateAppLogs
 
 # Chef Server Stack
 #########################################################################################
@@ -468,6 +497,7 @@ Resources:
         DBPassword: !Ref ChefDBPassword
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
+        AlertNotificationTopic: !Ref AlertNotificationTopic
         InstanceType: !Ref ChefInstanceType
         DBInstanceClass: !Ref ChefDBInstanceClass
         DBAllocatedStorage: !Ref ChefDBAllocatedStorage
@@ -487,7 +517,8 @@ Resources:
         Route53HostedZone: !If [CreateRoute53Record, !Ref Route53HostedZone, '']
         Route53RecordName: !Ref ChefServerDnsRecordName
         AMIFlavor: !Ref AMIFlavor
-        AlertNotificationTopic: !Ref AlertNotificationTopic
+        SystemLogsGroup: !Ref SystemLogs
+        AppLogsGroup: !Ref ChefAppLogs
 
 # Supermarket Stack
 #########################################################################################
@@ -509,6 +540,7 @@ Resources:
         KeyName: !Ref KeyName
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
+        AlertNotificationTopic: !Ref AlertNotificationTopic
         ChefUrl: !Sub "https://${ChefServerStack.Outputs.DNSName}"
         InstanceType: !Ref SupermarketInstanceType
         DataVolumeSize: !Ref SupermarketDataVolumeSize
@@ -521,7 +553,8 @@ Resources:
         Route53HostedZone: !If [CreateRoute53Record, !Ref Route53HostedZone, '']
         Route53RecordName: !Ref SupermarketDnsRecordName
         AMIFlavor: !Ref AMIFlavor
-        AlertNotificationTopic: !Ref AlertNotificationTopic
+        SystemLogsGroup: !Ref SystemLogs
+        AppLogsGroup: !Ref SupermarketAppLogs
 
 Outputs:
   AutomateUrl:
@@ -541,4 +574,7 @@ Outputs:
       Name: !Sub "${AWS::StackName}-SupermarketURL"
   AutomateAdminPassword:
     Description: The password for the Chef Automate admin user
-    Value: !Sub "To retrieve, run: ssh centos@${AutomateStack.Outputs.ServerIP} sudo cat /root/automate-credentials.toml"
+    Value: !If
+          - RHELAmiFlavor
+          - !Sub "To retrieve, run: ssh ec2-user@${AutomateStack.Outputs.ServerIP} sudo cat /root/automate-credentials.toml"
+          - !Sub "To retrieve, run: ssh centos@${AutomateStack.Outputs.ServerIP} sudo cat /root/automate-credentials.toml"
