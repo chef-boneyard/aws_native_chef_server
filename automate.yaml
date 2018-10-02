@@ -1,0 +1,606 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS Native Automate 2 (auto-recovering standalone) v4.0.0
+
+Parameters:
+  # Required Parameters
+  AutomationBucket:
+    Default: 'sce-pub'
+    Type: String
+    Description: AWS S3 bucket name that contains all of the cloudformation templates and scripts for this stack
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
+  LoadBalancerSubnets:
+    Description: Provide a list of Subnet IDs for the Load Balancers (must be at least 2 within the specified VPC)
+    Type: List<AWS::EC2::Subnet::Id>
+  AutomateSubnet:
+    Description: Provide a single Subnet ID for the Automate Server (must be within the specified VPC)
+    Type: AWS::EC2::Subnet::Id
+  SSLCertificateARN:
+    Description: SSL Certficate ARN for SSL Certficate
+    Type: String
+  InboundAdminSecurityGroupId:
+    Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
+    Type: AWS::EC2::SecurityGroup::Id
+  ImageId:
+    Description: The AMI ID to be used for launching instances
+    Type: AWS::EC2::Image::Id
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+  ContactEmail:
+    Description: Contact email for Cloudwatch notifications and instance tagging
+    Type: String
+  ContactDept:
+    Description: Contact department for billing purposes
+    Type: String
+  AlertNotificationTopic:
+    Description: AWS SNS Alert notification topic
+    Type: String
+  ###############################################################################
+  # Performance Settings
+  InstanceType:
+    Description: EC2 Instance type for Automate server (M5 class recommended)
+    Default: m5.large
+    Type: String
+    AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
+      m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
+      c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
+  DataVolumeSize:
+    Description: Amount of storage space to allocate on a dedicated data volume (must be between 500 and 16000)
+    Type: Number
+    Default: 1000
+  ###############################################################################
+  # Security Settings
+  AutomateDataCollectorToken:
+    Description: The token used for ingesting Data Collector (Chef) events
+    Type: String
+    Default: 93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506
+  LoadBalancerScheme:
+    Description: Network Scheme for the ELB
+    Type: String
+    Default: internet-facing
+    AllowedValues:
+    - 'internet-facing'
+    - 'internal'
+  LoadBalancerSecurityGroupId:
+    Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
+    Type: String
+  FrontendSecurityGroupId:
+    Description: Supply a security group for your Automate server (leave blank to have it created for you). Using the default security group is recommended.
+    Type: String
+  AutomateIamRole:
+    Description: Supply an IAM Role for the Automate Server (leave blank to have it created for you). NOTE If you supply your own role, you must also provide an S3 Bucket which that role can access
+    Type: String
+  ###############################################################################
+  # Other Settings
+  Route53HostedZone:
+    Type: String
+    Default: ''
+    Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com.) for auto-creating a DNS record. Must end in a dot. (Leave blank to disable)
+  Route53RecordName:
+    Type: String
+    Default: automate
+    Description: Supply a DNS record name that will be prepended to the Route 53 Hosted Zone
+  AMIFlavor:
+    Description: Choose the AMI Flavor, the High-Perf CentOS image or the stock and paid official RHEL image
+    Type: String
+    Default: 'centos'
+    AllowedValues:
+    - 'centos'
+    - 'rhel'
+  SystemLogsGroup:
+    Description: The logical name of the Cloudwatch Logs log group for systemn logs
+    Type: String
+  AppLogsGroup:
+    Description: The logical name of the Cloudwatch Logs log group for systemn logs
+    Type: String
+
+Metadata:
+  cfn-lint:
+    config:
+      ignore_checks:
+        - W2507
+
+Conditions:
+  CreateRoute53Record:
+    !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
+  RHELAmiFlavor:
+    !Equals [ !Ref AMIFlavor, 'rhel' ]
+
+Resources:
+  AutomateInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref AutomateIamRole
+
+  ChefALB:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroupId
+      Subnets: !Ref LoadBalancerSubnets
+      Scheme: !Ref LoadBalancerScheme
+      Tags:
+        - Key: Name
+          Value: !Sub automate-${AWS::StackName}
+        - Key: StackName
+          Value: !Sub ${AWS::StackName}
+        - Key: X-Dept
+          Value: !Ref ContactDept
+        - Key: X-Contact
+          Value: !Ref ContactEmail
+
+  ChefALBListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+        Certificates:
+          - CertificateArn: !Ref SSLCertificateARN
+        LoadBalancerArn: !Ref ChefALB
+        Port: 443
+        Protocol: HTTPS
+        DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ChefTargetGroup
+
+  ChefTargetGroup:
+      Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+      Properties:
+        HealthCheckIntervalSeconds: 60
+        UnhealthyThresholdCount: 10
+        HealthCheckPath: /
+        VpcId: !Ref VPC
+        Port: 443
+        Protocol: HTTPS
+        Targets:
+        - Id: !Ref AutomateServer
+          Port: 443
+        TargetGroupAttributes:
+          - Key: stickiness.enabled
+            Value: 'true'
+          - Key: stickiness.type
+            Value: lb_cookie
+        Tags:
+          - Key: X-Dept
+            Value: !Ref ContactDept
+          - Key: X-Contact
+            Value: !Ref ContactEmail
+
+  AutomateServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      EbsOptimized: true
+      BlockDeviceMappings:
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: 100
+          VolumeType: gp2
+          DeleteOnTermination: true
+      - DeviceName: /dev/xvdb
+        Ebs:
+          VolumeSize: !Ref DataVolumeSize
+          VolumeType: st1
+          DeleteOnTermination: false
+      IamInstanceProfile: !Ref AutomateInstanceProfile
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      Monitoring: true
+      SubnetId: !Ref AutomateSubnet
+      SecurityGroupIds:
+      - !Ref FrontendSecurityGroupId
+      - !Ref InboundAdminSecurityGroupId
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-singleton
+      - Key: X-Dept
+        Value: !Ref ContactDept
+      - Key: X-Contact
+        Value: !Ref ContactEmail
+      UserData:
+        "Fn::Base64": !Sub |
+          #!/bin/bash -ex
+          trap '/opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource AutomateServer' ERR
+          # Update the system first
+          yum upgrade --exclude="kernel*" --exclude="dracut*" -y
+          # Run before script, make sure to install cfn-init if not installed
+          # attempt to fetch the script first as a signed request (private bucket), then unsigned, then fallback
+          aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
+            curl -s https://${AutomationBucket}.s3.amazonaws.com/files/before.sh -o /root/before.sh || \
+            curl -s https://sce-pub.s3.amazonaws.com/files/before.sh -o /root/before.sh
+          bash -ex /root/before.sh
+          # Execute AWS::CloudFormation::Init
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource AutomateServer --region ${AWS::Region}
+          /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource AutomateServer
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT10M
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default: [awslogs, automate_setup, nightly_snapshots]
+        automate_setup:
+          packages:
+            yum:
+              lvm2: []
+              xfsprogs: []
+              perl: []
+              perl-DateTime: []
+              perl-Sys-Syslog: []
+              perl-LWP-Protocol-https: []
+              perl-Digest-SHA: []
+              zip: []
+              unzip: []
+          files:
+            /root/chef-automate.zip:
+              source: https://packages.chef.io/files/current/automate/latest/chef-automate_linux_amd64.zip
+            /etc/automate-config.toml:
+              content: !Sub
+              - |
+                [global.v1]
+                  # The external fully qualified domain name.
+                  # When the application is deployed you should be able to access 'https://<fqdn>/'
+                  # to login.
+                  fqdn = "${FQDN}"
+
+                # Deployment service configuration.
+                [deployment.v1]
+                  [deployment.v1.svc]
+                    # Habitat channel to install hartifact from.
+                    # Can be 'dev', 'current', or 'acceptance'
+                    channel = "current"
+                    upgrade_strategy = "at-once"
+                    deployment_type = "local"
+
+                # Load Balancer service configuration.
+                [load_balancer]
+                  [load_balancer.v1.sys]
+                    # The following TLS certificate and RSA public key were
+                    # automatically generated. The certificate is a self-signed
+                    # certificate and will likely produce security warnings when you
+                    # visit Chef Automate in your web browser. We recommend using a
+                    # certificate signed by a certificate authority you trust.
+                    [[load_balancer.v1.sys.frontend_tls]]
+                      # The TLS certificate for the load balancer frontend.
+                      cert = """-----BEGIN CERTIFICATE-----
+                MIID2zCCAsOgAwIBAgIBATANBgkqhkiG9w0BAQsFADBzMQswCQYDVQQGEwJVUzEW
+                MBQGA1UEChMNQ2hlZiBTb2Z0d2FyZTEWMBQGA1UECxMNQ2hlZiBBdXRvbWF0ZTE0
+                MDIGA1UEAxMraXAtMTcyLTMxLTIyLTEzNi51cy13ZXN0LTIuY29tcHV0ZS5pbnRl
+                cm5hbDAeFw0xODA1MTIwMDA1MTlaFw0yODA1MDkwMDA1MTlaMHMxCzAJBgNVBAYT
+                AlVTMRYwFAYDVQQKEw1DaGVmIFNvZnR3YXJlMRYwFAYDVQQLEw1DaGVmIEF1dG9t
+                YXRlMTQwMgYDVQQDEytpcC0xNzItMzEtMjItMTM2LnVzLXdlc3QtMi5jb21wdXRl
+                LmludGVybmFsMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxRuiePt3
+                fTEI5m7OM87pKlX84nv1Xmi7EAA/huA8+3wgX/yioCuVm1GyMNYjt/OGsVO2ZVx1
+                MFjkASJakCC4VTFE/+GOx/JO7mYSQ9P42hdSGfsYDQOSDRF5Lg+9VqQJahAfmOtl
+                9odo7rSWM55tL7OMbGVYrc8KqO/LueZWaZkkhKJHcsuSm8njT5pifgyWqpORR4Yp
+                oxLnAF5W5duyAJigQ1Wui27jDJpATX7k1JG5oFe3Gg25QhMy9lYggxb6Kgqnovsg
+                3P5Px9Zv3Rwh0xNe3t7nzFV7R7ywTYPs3Je/GKEU+gH0DRyYGmRADleBolVq6ZoU
+                /t735vZS/7smQwIDAQABo3oweDAOBgNVHQ8BAf8EBAMCAqQwHQYDVR0lBBYwFAYI
+                KwYBBQUHAwEGCCsGAQUFBwMCMA8GA1UdEwEB/wQFMAMBAf8wNgYDVR0RBC8wLYIr
+                aXAtMTcyLTMxLTIyLTEzNi51cy13ZXN0LTIuY29tcHV0ZS5pbnRlcm5hbDANBgkq
+                hkiG9w0BAQsFAAOCAQEAazzb9G51QXoKgbI5x/wqKTHLpsMF7UZSv64Yza3F/Kwu
+                n5j8f+MyX+CAx7tHa0VzDLGLw6VutdIZz7ucS5+EknZF5FsHz9MTUXicU+etsPMf
+                WXoi/3CccwfQE7EZTrpFN1oxt44JOLSkYOZOOaHmxt3kXnK5t0ieZM90UKS0aAMy
+                kuyn9yLf6H6Vn0YJH+Xz23F9IsqMYYbjE1QzlfUtvKPdD2tIvrnvoSGMyCt+SKdL
+                YKMyMnQfcQtf9rSX+FL9BH6DsUQM5J24GngOcZDNOLT3ZytsssuKXn/I4jDV5CBt
+                lxHwEIaDX4w52p9hUPCc9Kt4bH4SlupkfptpGojJlw==
+                -----END CERTIFICATE-----
+                """
+
+                      # The TLS RSA key for the load balancer frontend.
+                      key = """-----BEGIN RSA PRIVATE KEY-----
+                MIIEpQIBAAKCAQEAxRuiePt3fTEI5m7OM87pKlX84nv1Xmi7EAA/huA8+3wgX/yi
+                oCuVm1GyMNYjt/OGsVO2ZVx1MFjkASJakCC4VTFE/+GOx/JO7mYSQ9P42hdSGfsY
+                DQOSDRF5Lg+9VqQJahAfmOtl9odo7rSWM55tL7OMbGVYrc8KqO/LueZWaZkkhKJH
+                csuSm8njT5pifgyWqpORR4YpoxLnAF5W5duyAJigQ1Wui27jDJpATX7k1JG5oFe3
+                Gg25QhMy9lYggxb6Kgqnovsg3P5Px9Zv3Rwh0xNe3t7nzFV7R7ywTYPs3Je/GKEU
+                +gH0DRyYGmRADleBolVq6ZoU/t735vZS/7smQwIDAQABAoIBADTu9vMGlVBJmtpH
+                Z5kCOBvme8NXBs4T0ii56FWQYtAmxYsBjar2CXdsuS3kVDNScxmsIY+XBOG2/YRQ
+                dYG/R8GZOa5+JJoNuKTNRJpykqH/IU1Y4VydWNuplaGJGI/r/Zs+OT4X+Yn7U3LH
+                jI7QPQJSdaOmk+oZcANuYofKE+rHfRsG32o1WsiPcCpPhcYOIWBEWXnfuTppUsB/
+                JA/3MdxRye4om0tsCIOUPtnHS4SNS4YFb4M9DeFvsBtRLU3Us+ZROpMD5zG7Efhf
+                Rp4/GRe5XdNBTY/rV1KzroOoRKwrZGX+JVBo8oFd/TUQ4d0RY03s81VpcCm34NXr
+                yZapIAECgYEA3I7okMa29vjnK1H+4cc0nmWGaquyf6dlr6GwouWdcu+ULgHYRVcV
+                4pVmHTTesTVdiGyiIAR8jjFF8Hc8lOc9rTKoXUoS7dSTZmi+MaTHdQjq3uXPCO3h
+                ltpglm2GXAjQoqKdIKxqD5AJdtmn+02UcswH7UmYF8dVurOiUbt64sECgYEA5MgN
+                k4O/0pcZv4di8ub2HcMbNJkiDEeCM/gErUPNlG0f0TWVeiKNxg6GBZGN+M1jb0q8
+                Qj7PSkXmI53NFdz7uBfkI6cgI1uzd/uzuDSGI500wPP0ZZmrLREKKdOOqphubw8c
+                7KTkL0bXkovvIpJm5H2hQRTiQdNYraPI11cP/gMCgYEAoBJn34sZBy2mON6Nqbc2
+                DS+J2qk6J0OKnWkwFUmod95BIRLdr5WAoK3lKpVQejRM6dJN6AbZjylbpSYkpb0e
+                GjGF2A8Gpe19/PlP8B+zUtFiBNus4sIi06UyLHrY5LrREPgMKcZ4Q0s6UzOsosqv
+                TpGdvy2GYNue8J2m1MLIcQECgYEAkMJ0tK5cpeeuBx6nYYL6oAJgKHvsq1Bj9nYs
+                n2WToyMZSstY9Zr/kh6GdueOqatsC3OCg3gyuZBY+phSuE7Hh8i2Nkj9cOIJQRYm
+                tZumdMp4Is86CT+erDln8OdIEnG5DtTFPIdpSvDMXpHkkj+Ik3NaoU+Rio0sQ1Kr
+                NnaES/kCgYEAgnjYEGleFkwcwxRvRbPRumb+9ZLjDWecWfT761yB23MHRr4AvhlR
+                aGBCn/6IpNpOaQ4CxUK9aJ1mdLfx4F4dXIOF/sDirLX5NaPK1F9TcLXKdwJ1A/9j
+                IhuGP/uG80e3G/SFNZLrFpKvS+O+SpI3xMDf8erUnYkL6UH/8JzCGEw=
+                -----END RSA PRIVATE KEY-----
+                """
+
+                # License Control service configuration.
+                [license_control.v1]
+                  [license_control.v1.svc]
+                    # The Chef Software provided license token required to run Chef Automate.
+                    # This can also be set with the "chef-automate license apply" command.
+                    license = ""
+                #
+                [auth_n.v1.sys.service]
+                  a1_data_collector_token = "${AutomateDataCollectorToken}"
+              - { FQDN: !If [CreateRoute53Record, !Ref AutomateDNSRecord, !GetAtt ChefALB.DNSName] }
+            /etc/sysctl.d/00-chef.conf:
+              content: |
+                vm.swappiness=10
+                vm.max_map_count=262144
+                vm.dirty_ratio=20
+                vm.dirty_background_ratio=30
+                vm.dirty_expire_centisecs=30000
+            /etc/security/limits.d/20-nproc.conf:
+              content: |
+                *   soft  nproc     65536
+                *   hard  nproc     65536
+                *   soft  nofile    1048576
+                *   hard  nofile    1048576
+          commands:
+            02_before_script:
+              command: |
+                sysctl -p /etc/sysctl.d/00-chef.conf
+                mkdir -p /hab
+                pvs | grep nvme1n1 || pvcreate /dev/nvme1n1
+                vgs | grep data-vg || vgcreate data-vg /dev/nvme1n1
+                lvs | grep data-lv || (lvcreate -n data-lv -l 95%VG data-vg ; mkfs.xfs /dev/data-vg/data-lv)
+                grep hab /proc/mounts || mount /dev/data-vg/data-lv /hab
+            03_configure_automate:
+              command: |
+                cd /root
+                unzip chef-automate.zip -d /usr/local/sbin
+                /usr/local/sbin/chef-automate deploy /etc/automate-config.toml --accept-terms-and-mlsa --skip-preflight
+            04_after_script:
+              command: !Sub |
+                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
+                aws s3 cp s3://${AutomationBucket}/files/after.sh /root/after.sh || \
+                  curl -s https://${AutomationBucket}.s3.amazonaws.com/files/after.sh -o /root/after.sh
+                bash -ex /root/after.sh
+            05_configure_cloudwatch_monitoring:
+              command: |
+                mkdir /opt/cloudwatch_monitoring
+                cd /opt/cloudwatch_monitoring
+                curl -s -O http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip
+                unzip CloudWatchMonitoringScripts-1.2.1.zip
+                rm -f CloudWatchMonitoringScripts-1.2.1.zip
+                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
+                crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --disk-space-util --disk-path=/hab --from-cron"; } | crontab -
+        nightly_snapshots:
+          files:
+            /usr/local/bin/ebs-snapshot.sh:
+              source: https://raw.githubusercontent.com/CaseyLabs/aws-ec2-ebs-automatic-snapshot-bash/master/ebs-snapshot.sh
+              mode: '000755'
+          commands:
+            create_nightly_backup_cronjob:
+              command: |
+                crontab -l | { cat; echo "55 23 * * * root /usr/local/bin/ebs-snapshot.sh"; } | crontab -
+        awslogs:
+          files:
+            /root/awslogs-agent-setup.py:
+              source: 'https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py'
+              mode: '000755'
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [default]
+                region = ${AWS::Region}
+                [plugins]
+                cwlogs = cwlogs
+              mode: '000644'
+              owner: root
+              group: root
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                [/var/log/messages]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/messages
+                log_stream_name = {instance_id}
+                log_group_name = ${AppLogsGroup}
+                [/var/log/secure]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/secure
+                log_stream_name = {instance_id}
+                log_group_name = ${SystemLogsGroup}
+                [/var/log/cron]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/cron
+                log_stream_name = {instance_id}
+                log_group_name = ${SystemLogsGroup}
+                [/var/log/cloud-init.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/cloud-init.log
+                log_stream_name = {instance_id}
+                log_group_name = ${SystemLogsGroup}
+                [/var/log/cfn-init.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-init.log
+                log_stream_name = {instance_id}
+                log_group_name = ${SystemLogsGroup}
+                [/var/log/cfn-init-cmd.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-init-cmd.log
+                log_stream_name = {instance_id}
+                log_group_name = ${SystemLogsGroup}
+                [/var/log/dmesg]
+                file = /var/log/dmesg
+                log_stream_name = {instance_id}
+                log_group_name = ${SystemLogsGroup}
+              mode: '000644'
+              owner: root
+              group: root
+          commands:
+            01_setup:
+              command: !Sub |
+                mkdir -p /var/lib/awslogs
+                python /root/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
+
+# EC2 System AutoRecovery
+# https://aws.amazon.com/blogs/aws/new-auto-recovery-for-amazon-ec2/
+#########################################################################################
+  RecoveryAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub EC2AutoRecoveryAlarm-${AWS::StackName}
+      AlarmDescription: 'Recovering instance when underlying hardware fails.'
+      Namespace: 'AWS/EC2'
+      MetricName: StatusCheckFailed_System
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 5
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      AlarmActions:
+      - !Sub 'arn:aws:automate:${AWS::Region}:ec2:recover'
+      - !Ref AlertNotificationTopic
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref AutomateServer
+
+  RebootAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub EC2AutoRebootAlarm-${AWS::StackName}
+      AlarmDescription: 'Reboot instance if it starts failing instance checks'
+      Namespace: 'AWS/EC2'
+      MetricName: StatusCheckFailed_Instance
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      AlarmActions:
+      - !Sub 'arn:aws:swf:${AWS::Region}:${AWS::AccountId}:action/actions/AWS_EC2.InstanceId.Reboot/1.0'
+      - !Ref AlertNotificationTopic
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref AutomateServer
+
+# Route 53 Record
+#########################################################################################
+  AutomateDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateRoute53Record
+    Properties:
+      HostedZoneName: !Ref Route53HostedZone
+      Comment: !Sub Created by Cloudformation ${AWS::StackName}
+      Name: !Sub ${Route53RecordName}.${Route53HostedZone}
+      Type: CNAME
+      TTL: '900'
+      ResourceRecords:
+      - !GetAtt ChefALB.DNSName
+
+# Monitoring
+#########################################################################################
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub CPUAlarmHigh-${AWS::StackName}
+      AlarmDescription: Alarms when CPU > 60% for 5 minutes
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 5
+      Period: 60
+      Statistic: Average
+      Threshold: 60
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref AutomateServer
+
+  DiskSpaceUtilizationNvme:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub DiskSpaceUtilizationNvme-${AWS::StackName}
+      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: DiskSpaceUtilization
+      Namespace: System/Linux
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
+      Unit: Percent
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref AutomateServer
+      - Name: MountPath
+        Value: '/'
+      - Name: Filesystem
+        Value: !If [RHELAmiFlavor, "/dev/nvme0n1p2", "/dev/nvme0n1p1"]
+
+  DiskSpaceUtilizationDataDisk:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub DiskSpaceUtilizationDataDisk-${AWS::StackName}
+      AlarmDescription: Alarms when an disk utilization reaches a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: DiskSpaceUtilization
+      Namespace: System/Linux
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
+      Unit: Percent
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref AutomateServer
+      - Name: MountPath
+        Value: '/hab'
+      - Name: Filesystem
+        Value: '/dev/mapper/data--vg-data--lv'
+
+  MemoryUtilization:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub MemoryUtilization-${AWS::StackName}
+      AlarmDescription: Alarms when an memory utilization reaches a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: MemoryUtilization
+      Namespace: System/Linux
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 300
+      Statistic: Average
+      Threshold: 80
+      Unit: Percent
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref AutomateServer
+
+  ELB5XXExceeded:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub AppELB_5XX_Exceeded-${AWS::StackName}
+      AlarmDescription: Alarms when an 5xx requests exceed a specified threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: HTTPCode_ELB_5XX_Count
+      Namespace: AWS/ApplicationELB
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 5
+      Period: 60
+      Statistic: Sum
+      Threshold: 10
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ChefALB.LoadBalancerFullName
+
+Outputs:
+  DNSName:
+    Description: The DNS name of the load balancer
+    Value: !If [CreateRoute53Record, !Sub "${Route53RecordName}.${Route53HostedZone}", !GetAtt ChefALB.DNSName]
+    Export:
+      Name: !Sub "${AWS::StackName}-DNSName"
+  ServerIP:
+    Description: The IP Address of the Automate Server
+    Value: !GetAtt AutomateServer.PublicIp
