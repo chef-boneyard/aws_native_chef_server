@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/chef-customers/aws_native_chef_server.svg?branch=master)](https://travis-ci.org/chef-customers/aws_native_chef_server)
+
 # AWS Native Chef Stack
 A complete Chef Stack including:
 - Chef Automate 2 server, using EC2 Auto-Recovery
@@ -118,7 +120,6 @@ Yes, it is significantly more robust and easier to operate.
 - Support for restoring from an RDS Snapshot and existing secrets bucket
 - Investigate better secrets handling (AWS secrets service?)
 - Investigate alternatives to AWS Postgres RDS, namely AWS Aurora's Postgres mode and/or RedShift
-- Add Chef Automate as part of the deployment ([WIP](https://github.com/chef-customers/aws_native_chef_server/pull/37))
 
 Contributions are welcomed!
 

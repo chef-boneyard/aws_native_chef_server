@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack v4.0.0-beta1
+Description: AWS Native Chef Stack v4.0.0
 
 Parameters:
   # Required Parameters
   AutomationBucket:
-    Default: 'sce-pub'
+    Default: 'aws-native-chef-server'
     Type: String
     Description: AWS S3 bucket name that contains all of the cloudformation templates and scripts for this stack
   VPC:

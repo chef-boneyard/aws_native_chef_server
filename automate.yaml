@@ -4,7 +4,7 @@ Description: AWS Native Automate 2 (auto-recovering standalone) v4.0.0
 Parameters:
   # Required Parameters
   AutomationBucket:
-    Default: 'sce-pub'
+    Default: 'aws-native-chef-server'
     Type: String
     Description: AWS S3 bucket name that contains all of the cloudformation templates and scripts for this stack
   VPC:
@@ -209,7 +209,7 @@ Resources:
           # attempt to fetch the script first as a signed request (private bucket), then unsigned, then fallback
           aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
             curl -s https://${AutomationBucket}.s3.amazonaws.com/files/before.sh -o /root/before.sh || \
-            curl -s https://sce-pub.s3.amazonaws.com/files/before.sh -o /root/before.sh
+            curl -s https://aws-native-chef-server.s3.amazonaws.com/files/before.sh -o /root/before.sh
           bash -ex /root/before.sh
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource AutomateServer --region ${AWS::Region}
