@@ -27,7 +27,8 @@ Parameters:
     Type: String
     AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
-      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge]
+      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
+      db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
   DBAllocatedStorage:
     Description: Storage size allocated for the database
     Default: '100'
@@ -78,7 +79,7 @@ Resources:
       StorageType: io1
       MultiAZ: true
       Engine: postgres
-      EngineVersion: 9.6.8
+      EngineVersion: 9.6.10
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: '35'

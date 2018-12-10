@@ -65,7 +65,8 @@ Parameters:
     Type: String
     AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
-      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge]
+      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
+      db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
   DBAllocatedStorage:
     Description: Storage size allocated for the database
     Default: '100'
@@ -169,7 +170,7 @@ Parameters:
   Route53HostedZone:
     Type: String
     Default: ''
-    Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com.) for auto-creating a DNS record. Must end in a dot. (Leave blank to disable)
+    Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com) for auto-creating a DNS record. Must NOT end in a dot. (Leave blank to disable)
   Route53RecordName:
     Type: String
     Default: 'chef'
@@ -187,6 +188,9 @@ Parameters:
   AppLogsGroup:
     Description: The logical name of the Cloudwatch Logs log group for systemn logs
     Type: String
+  TemplateVersion:
+    Type: String
+    Default: "4.0.1"
 
 Metadata:
   cfn-lint:
@@ -435,8 +439,8 @@ Resources:
           yum upgrade -y
           # Run before script, make sure to install cfn-init if not installed
           # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-          aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
-            curl -s https://${AutomationBucket}.s3.amazonaws.com/files/before.sh -o /root/before.sh || \
+          aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/before.sh /root/before.sh || \
+            curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/before.sh -o /root/before.sh || \
             curl -s https://aws-native-chef-server.s3.amazonaws.com/files/before.sh -o /root/before.sh
           bash -ex /root/before.sh
           # Execute AWS::CloudFormation::Init
@@ -578,14 +582,14 @@ Resources:
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
                 # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/files/main.sh /root/main.sh || \
-                  aws s3 cp --no-sign-request s3://${AutomationBucket}/files/main.sh /root/main.sh
+                aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/main.sh /root/main.sh || \
+                  aws s3 cp --no-sign-request s3://${AutomationBucket}/${TemplateVersion}/files/main.sh /root/main.sh
                 bash -x /root/main.sh
             04_after_script:
               command: !Sub |
                 # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/files/after.sh /root/after.sh || \
-                  curl -s https://${AutomationBucket}.s3.amazonaws.com/files/after.sh -o /root/after.sh
+                aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/after.sh /root/after.sh || \
+                  curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/after.sh -o /root/after.sh
                 bash -ex /root/after.sh
             05_configure_cloudwatch_monitoring:
               command: |
@@ -749,7 +753,7 @@ Resources:
   PostgreSQLStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/chef_rds.yaml
+      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/chef_rds.yaml
       Parameters:
         VPC: !Sub ${VPC}
         ChefServerSubnets: !Join [ ",", !Ref ChefServerSubnets ]
@@ -767,7 +771,7 @@ Resources:
   ElasticsearchStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/chef_elasticsearch.yaml
+      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/chef_elasticsearch.yaml
       Parameters:
         VPC: !Sub ${VPC}
         ChefServerSubnets: !Join [ ",", !Ref ChefServerSubnets ]
@@ -786,9 +790,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Condition: CreateRoute53Record
     Properties:
-      HostedZoneName: !Ref Route53HostedZone
+      HostedZoneName: !Sub ${Route53HostedZone}.
+      Name: !Sub ${Route53RecordName}.${Route53HostedZone}.
       Comment: !Sub Created by Cloudformation ${AWS::StackName}
-      Name: !Sub ${Route53RecordName}.${Route53HostedZone}
       Type: CNAME
       TTL: '900'
       ResourceRecords:
@@ -800,7 +804,7 @@ Resources:
   OpsDashboardStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/chef_server_ops_dashboard.yaml
+      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/chef_server_ops_dashboard.yaml
       Parameters:
         BootstrapAutoScaleGroup: !Ref BootstrapAutoScaleGroup
         FrontendAutoScaleGroup: !Ref FrontendAutoScaleGroup

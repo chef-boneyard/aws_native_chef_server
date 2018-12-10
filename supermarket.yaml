@@ -96,7 +96,7 @@ Parameters:
   Route53HostedZone:
     Type: String
     Default: ''
-    Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com.) for auto-creating a DNS record. Must end in a dot. (Leave blank to disable)
+    Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com) for auto-creating a DNS record. Must NOT end in a dot. (Leave blank to disable)
   Route53RecordName:
     Type: String
     Default: 'supermarket'
@@ -114,6 +114,9 @@ Parameters:
   AppLogsGroup:
     Description: The logical name of the Cloudwatch Logs log group for systemn logs
     Type: String
+  TemplateVersion:
+    Type: String
+    Default: "4.0.1"
 
 Metadata:
   cfn-lint:
@@ -219,8 +222,8 @@ Resources:
           yum upgrade -y
           # Run before script, make sure to install cfn-init if not installed
           # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-          aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \
-            curl -s https://${AutomationBucket}.s3.amazonaws.com/files/before.sh -o /root/before.sh || \
+          aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/before.sh /root/before.sh || \
+            curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/before.sh -o /root/before.sh || \
             curl -s https://aws-native-chef-server.s3.amazonaws.com/files/before.sh -o /root/before.sh
           bash -ex /root/before.sh
           # Execute AWS::CloudFormation::Init
@@ -271,8 +274,8 @@ Resources:
             04_after_script:
               command: !Sub |
                 # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/files/after.sh /root/after.sh || \
-                  curl -s https://${AutomationBucket}.s3.amazonaws.com/files/after.sh -o /root/after.sh
+                aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/after.sh /root/after.sh || \
+                  curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/after.sh -o /root/after.sh
                 bash -ex /root/after.sh
             05_configure_cloudwatch_monitoring:
               command: |
@@ -423,9 +426,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Condition: CreateRoute53Record
     Properties:
-      HostedZoneName: !Ref Route53HostedZone
+      HostedZoneName: !Sub ${Route53HostedZone}.
+      Name: !Sub ${Route53RecordName}.${Route53HostedZone}.
       Comment: !Sub Created by Cloudformation ${AWS::StackName}
-      Name: !Sub ${Route53RecordName}.${Route53HostedZone}
       Type: CNAME
       TTL: '900'
       ResourceRecords:
