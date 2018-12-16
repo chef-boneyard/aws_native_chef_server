@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server (auto-scaling HA) v4.1.0
+Description: AWS Native Chef Server (auto-scaling HA) v5.0.0
 
 Parameters:
   # Required Parameters
@@ -61,7 +61,7 @@ Parameters:
     Type: String
   DBInstanceClass:
     Description: EC2 Instance type for RDS DBs (EBS Optimized instances recommended)
-    Default: 'db.m4.large'
+    Default: 'db.m5.large'
     Type: String
     AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
@@ -85,13 +85,14 @@ Parameters:
       'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
       'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ElasticSearchVersion:
-    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.x. (5.5 recommended for new installs)
+    Description: Version of ElasticSearch to use
     Type: String
     Default: '5.5'
     AllowedValues:
     - '2.3'
     - '5.3'
     - '5.5'
+    - '6.3'
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
@@ -100,20 +101,6 @@ Parameters:
     Description: Replication factor for ElasticSearch sha vrds (how many extra copies to keep)
     Default: 2
     Type: Number
-  ###############################################################################
-  # Package Versions & Locations
-  ChefServerPackage:
-    Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
-    Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-server/12.17.33/el/7/chef-server-core-12.17.33-1.el7.x86_64.rpm'
-  ChefManagePackage:
-    Description: The URL to the chef-manage EL7 package which will be downloaded
-    Type: String
-    Default: 'https://packages.chef.io/files/stable/chef-manage/2.5.16/el/7/chef-manage-2.5.16-1.el7.x86_64.rpm'
-  PushJobsPackage:
-    Description: The URL to the push jobs server package which will be downloaded
-    Type: String
-    Default: 'https://packages.chef.io/files/stable/opscode-push-jobs-server/2.2.8/el/7/opscode-push-jobs-server-2.2.8-1.el7.x86_64.rpm'
   ###############################################################################
   # Security Settings
   LoadBalancerScheme:
@@ -175,13 +162,6 @@ Parameters:
     Type: String
     Default: 'chef'
     Description: Supply a DNS record name that will be prepended to the Route 53 Hosted Zone
-  AMIFlavor:
-    Description: Choose the AMI Flavor, the High-Perf CentOS image or the stock and paid official RHEL image
-    Type: String
-    Default: 'centos'
-    AllowedValues:
-    - 'centos'
-    - 'rhel'
   SystemLogsGroup:
     Description: The logical name of the Cloudwatch Logs log group for systemn logs
     Type: String
@@ -190,7 +170,7 @@ Parameters:
     Type: String
   TemplateVersion:
     Type: String
-    Default: "4.0.1"
+    Default: "5.0.0"
 
 Metadata:
   cfn-lint:
@@ -201,8 +181,6 @@ Metadata:
 Conditions:
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
-  RHELAmiFlavor:
-    !Equals [ !Ref AMIFlavor, 'rhel' ]
 
 Resources:
 # Frontend Autoscale Groups
@@ -430,19 +408,8 @@ Resources:
       UserData:
         "Fn::Base64": !Sub |
           #!/bin/bash -ex
-          trap "{
-            /opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource ServerLaunchConfig
-            # Uncomment this next line before going to production
-            # aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-          }" ERR
-          # Update the system first
-          yum upgrade -y
-          # Run before script, make sure to install cfn-init if not installed
-          # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-          aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/before.sh /root/before.sh || \
-            curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/before.sh -o /root/before.sh || \
-            curl -s https://aws-native-chef-server.s3.amazonaws.com/files/before.sh -o /root/before.sh
-          bash -ex /root/before.sh
+          # Uncomment this next line before going to production, note: It can cause instances to cycle rapidly, watch Cloudwatch Logs for errors
+          # trap "aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)" ERR
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
           # All is well so signal success and let CF know wait function is complete
@@ -453,9 +420,6 @@ Resources:
           default: [awslogs, es_proxy_setup, chef_server_setup, filebeat]
         es_proxy_setup:
           files:
-            /usr/local/bin/aws-signing-proxy:
-              source: https://github.com/chef-customers/aws-signing-proxy/releases/download/v0.5.0/aws-signing-proxy
-              mode: '000755'
             /etc/systemd/system/aws-signing-proxy.service:
               content: |
                 [Unit]
@@ -478,21 +442,9 @@ Resources:
                 stdout-log: true
           commands:
             01_start_es_proxy:
-              command: systemctl daemon-reload && systemctl start aws-signing-proxy
+              command: |
+                systemctl daemon-reload && systemctl start aws-signing-proxy
         chef_server_setup:
-          packages:
-            rpm:
-              chef-server-core: !Sub ${ChefServerPackage}
-              chef-manage: !Sub ${ChefManagePackage}
-              opscode-push-jobs-server: !Sub ${PushJobsPackage}
-            yum:
-              perl: []
-              perl-DateTime: []
-              perl-Sys-Syslog: []
-              perl-LWP-Protocol-https: []
-              perl-Digest-SHA: []
-              zip: []
-              unzip: []
           files:
             /etc/opscode-push-jobs-server/opscode-push-jobs-server.rb:
               content: !Sub |
@@ -553,23 +505,13 @@ Resources:
                   data_collector['token'] = '${ChefAutomateToken}'
                 end
               - { DNSNAME: !If [CreateRoute53Record, !Sub "${Route53RecordName}.${Route53HostedZone}", !GetAtt ChefALB.DNSName] }
-            /etc/sysctl.d/00-chef.conf:
-              content: |
-                vm.swappiness=10
-                vm.max_map_count=262144
-                vm.dirty_ratio=20
-                vm.dirty_background_ratio=30
-                vm.dirty_expire_centisecs=30000
-            /etc/security/limits.d/20-nproc.conf:
-              content: |
-                *   soft  nproc     65536
-                *   hard  nproc     65536
-                *   soft  nofile    1048576
-                *   hard  nofile    1048576
           commands:
             02_before_script:
               command: !Sub |
-                sysctl -p /etc/sysctl.d/00-chef.conf
+                # If we're using a marketplace, install locally cached packages
+                pushd /var/cache/marketplace
+                rpm -ivh chef-server-core.rpm chef-manage.rpm push-jobs-server.rpm
+                popd
                 if [ -n '${ChefServerCustomConfig}' ]; then
                     aws s3 cp ${ChefServerCustomConfig} /etc/opscode/chef-server-custom.rb
                     echo "# Appended from chef-server-custom.rb" >> /etc/opscode/chef-server.rb
@@ -581,29 +523,20 @@ Resources:
                 export BUCKET=${ChefSecretsBucket}
                 export AWS_REGION=${AWS::Region}
                 export WAITHANDLE="${WaitHandle}"
-                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/main.sh /root/main.sh || \
-                  aws s3 cp --no-sign-request s3://${AutomationBucket}/${TemplateVersion}/files/main.sh /root/main.sh
-                bash -x /root/main.sh
+
+                bash -x /var/cache/marketplace/main.sh
             04_after_script:
-              command: !Sub |
-                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/after.sh /root/after.sh || \
-                  curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/after.sh -o /root/after.sh
-                bash -ex /root/after.sh
+              command: |
+                # clean up the chef package cache, to maximize available disk space after install
+                if [ -d /var/cache/marketplace ]; then
+                    rm -f /var/cache/marketplace/*.rpm
+                    rm -f /var/cache/marketplace/*.aib
+                fi
             05_configure_cloudwatch_monitoring:
               command: |
-                mkdir /opt/cloudwatch_monitoring
-                cd /opt/cloudwatch_monitoring
-                curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
-                unzip CloudWatchMonitoringScripts-1.2.1.zip
-                rm -f CloudWatchMonitoringScripts-1.2.1.zip
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
         awslogs:
           files:
-            /root/awslogs-agent-setup.py:
-              source: 'https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py'
-              mode: '000755'
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [default]
@@ -710,11 +643,8 @@ Resources:
             01_setup:
               command: !Sub |
                 mkdir -p /var/lib/awslogs
-                python /root/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
+                python /var/cache/marketplace/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
         filebeat:
-          packages:
-            rpm:
-              filebeat: https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-5.6.6-x86_64.rpm
           files:
             /etc/filebeat/filebeat.yml:
               content: |
@@ -736,7 +666,9 @@ Resources:
               group: root
           commands:
             01_systemd:
-              command: systemctl daemon-reload && systemctl start filebeat.service
+              command: |
+                rpm -ivh /var/cache/marketplace/filebeat-5.6.6-x86_64.rpm
+                systemctl daemon-reload && systemctl start filebeat.service
 
   WaitCondition:
     Type: AWS::CloudFormation::WaitCondition
@@ -835,7 +767,7 @@ Resources:
         - Name: MountPath
           Value: '/'
         - Name: Filesystem
-          Value: !If [RHELAmiFlavor, "/dev/nvme0n1p2", "/dev/nvme0n1p1"]
+          Value: '/dev/nvme0n1p1'
 
   BootstrapDiskSpaceUtilizationNvme:
     Type: AWS::CloudWatch::Alarm
@@ -857,7 +789,7 @@ Resources:
         - Name: MountPath
           Value: '/'
         - Name: Filesystem
-          Value: !If [RHELAmiFlavor, "/dev/nvme0n1p2", "/dev/nvme0n1p1"]
+          Value: '/dev/nvme0n1p1'
 
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm

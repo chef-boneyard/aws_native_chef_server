@@ -1,12 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Supermarket (auto-recovering standalone) v4.1.0
+Description: AWS Native Supermarket (auto-recovering standalone) v5.0.0
 
 Parameters:
   # Required Parameters
-  AutomationBucket:
-    Default: 'aws-native-chef-server'
-    Type: String
-    Description: AWS S3 bucket name that contains all of the cloudformation templates and scripts for this stack
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
@@ -62,12 +58,6 @@ Parameters:
     Type: Number
     Default: 100
   ###############################################################################
-  # Package Versions & Locations
-  SupermarketPackage:
-    Description: The URL to the chef server EL7 (chef-server-core) package which will be downloaded
-    Type: String
-    Default: 'https://packages.chef.io/files/stable/supermarket/3.1.63/el/7/supermarket-3.1.63-1.el7.x86_64.rpm'
-  ###############################################################################
   # Security Settings
   LoadBalancerScheme:
     Description: Network Scheme for the ELB
@@ -101,22 +91,12 @@ Parameters:
     Type: String
     Default: 'supermarket'
     Description: Supply a DNS record name that will be prepended to the Route 53 Hosted Zone
-  AMIFlavor:
-    Description: Choose the AMI Flavor, the High-Perf CentOS image or the stock and paid official RHEL image
-    Type: String
-    Default: 'centos'
-    AllowedValues:
-    - 'centos'
-    - 'rhel'
   SystemLogsGroup:
     Description: The logical name of the Cloudwatch Logs log group for systemn logs
     Type: String
   AppLogsGroup:
     Description: The logical name of the Cloudwatch Logs log group for systemn logs
     Type: String
-  TemplateVersion:
-    Type: String
-    Default: "4.0.1"
 
 Metadata:
   cfn-lint:
@@ -127,8 +107,6 @@ Metadata:
 Conditions:
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
-  RHELAmiFlavor:
-    !Equals [ !Ref AMIFlavor, 'rhel' ]
 
 Resources:
   ChefInstanceProfile:
@@ -218,14 +196,6 @@ Resources:
         "Fn::Base64": !Sub |
           #!/bin/bash -ex
           trap '/opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource SupermarketServer' ERR
-          # Update the system first
-          yum upgrade -y
-          # Run before script, make sure to install cfn-init if not installed
-          # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-          aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/before.sh /root/before.sh || \
-            curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/before.sh -o /root/before.sh || \
-            curl -s https://aws-native-chef-server.s3.amazonaws.com/files/before.sh -o /root/before.sh
-          bash -ex /root/before.sh
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource SupermarketServer --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource SupermarketServer
@@ -238,25 +208,10 @@ Resources:
         configSets:
           default: [awslogs, supermarket_setup, nightly_snapshots]
         supermarket_setup:
-          packages:
-            rpm:
-              supermarket: !Sub ${SupermarketPackage}
-            yum:
-              perl: []
-              perl-DateTime: []
-              perl-Sys-Syslog: []
-              perl-LWP-Protocol-https: []
-              perl-Digest-SHA: []
-              zip: []
-              unzip: []
           commands:
             02_write_supermarket_json:
               command: !Sub
               - |
-                yum install -y jq || \
-                  rpm -ivh \
-                    https://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/o/oniguruma-5.9.5-3.el7.x86_64.rpm \
-                    https://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/j/jq-1.5-1.el7.x86_64.rpm
                 aws s3 cp s3://${ChefSecretsBucket}/${ChefStackName}/etc_opscode/oc-id-applications/supermarket.json /tmp/supermarket.json
                 OAUTH2_APP_ID=$(cat /tmp/supermarket.json | jq -r ".uid")
                 OAUTH2_SECRET=$(cat /tmp/supermarket.json | jq -r ".secret")
@@ -270,35 +225,25 @@ Resources:
               - { FQDN: !If [CreateRoute53Record, !Ref SupermarketDNSRecord, !GetAtt ChefALB.DNSName] }
             03_configure_supermarket:
               command: |
+                rpm -ivh /var/cache/marketplace/supermarket.rpm
                 supermarket-ctl reconfigure
             04_after_script:
-              command: !Sub |
-                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/after.sh /root/after.sh || \
-                  curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/after.sh -o /root/after.sh
-                bash -ex /root/after.sh
+              command: |
+                # clean up the chef package cache, to maximize available disk space after install
+                if [ -d /var/cache/marketplace ]; then
+                    rm -f /var/cache/marketplace/*.rpm
+                    rm -f /var/cache/marketplace/*.aib
+                fi
             05_configure_cloudwatch_monitoring:
               command: |
-                mkdir /opt/cloudwatch_monitoring
-                cd /opt/cloudwatch_monitoring
-                curl http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip -O
-                unzip CloudWatchMonitoringScripts-1.2.1.zip
-                rm -f CloudWatchMonitoringScripts-1.2.1.zip
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
         nightly_snapshots:
-          files:
-            /usr/local/bin/ebs-snapshot.sh:
-              source: https://raw.githubusercontent.com/CaseyLabs/aws-ec2-ebs-automatic-snapshot-bash/master/ebs-snapshot.sh
-              mode: '000755'
           commands:
             create_nightly_backup_cronjob:
               command: |
                 crontab -l | { cat; echo "55 23 * * * root /usr/local/bin/ebs-snapshot.sh"; } | crontab -
         awslogs:
           files:
-            /root/awslogs-agent-setup.py:
-              source: 'https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py'
-              mode: '000755'
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [default]
@@ -377,7 +322,7 @@ Resources:
             01_setup:
               command: !Sub |
                 mkdir -p /var/lib/awslogs
-                python /root/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
+                python /var/cache/marketplace/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
 
 # EC2 System AutoRecovery
 # https://aws.amazon.com/blogs/aws/new-auto-recovery-for-amazon-ec2/
@@ -473,7 +418,7 @@ Resources:
       - Name: MountPath
         Value: '/'
       - Name: Filesystem
-        Value: !If [RHELAmiFlavor, "/dev/nvme0n1p2", "/dev/nvme0n1p1"]
+        Value: '/dev/nvme0n1p1'
 
   MemoryUtilization:
     Type: AWS::CloudWatch::Alarm

@@ -1,12 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Automate 2 (auto-recovering standalone) v4.1.0
+Description: AWS Native Automate 2 (auto-recovering standalone) v5.0.0
 
 Parameters:
   # Required Parameters
-  AutomationBucket:
-    Default: 'aws-native-chef-server'
-    Type: String
-    Description: AWS S3 bucket name that contains all of the cloudformation templates and scripts for this stack
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
@@ -55,7 +51,6 @@ Parameters:
   AutomateDataCollectorToken:
     Description: The token used for ingesting Data Collector (Chef) events
     Type: String
-    Default: 93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506
   LoadBalancerScheme:
     Description: Network Scheme for the ELB
     Type: String
@@ -82,22 +77,12 @@ Parameters:
     Type: String
     Default: automate
     Description: Supply a DNS record name that will be prepended to the Route 53 Hosted Zone
-  AMIFlavor:
-    Description: Choose the AMI Flavor, the High-Perf CentOS image or the stock and paid official RHEL image
-    Type: String
-    Default: 'centos'
-    AllowedValues:
-    - 'centos'
-    - 'rhel'
   SystemLogsGroup:
     Description: The logical name of the Cloudwatch Logs log group for systemn logs
     Type: String
   AppLogsGroup:
     Description: The logical name of the Cloudwatch Logs log group for systemn logs
     Type: String
-  TemplateVersion:
-    Type: String
-    Default: "4.0.1"
 
 Metadata:
   cfn-lint:
@@ -108,8 +93,6 @@ Metadata:
 Conditions:
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
-  RHELAmiFlavor:
-    !Equals [ !Ref AMIFlavor, 'rhel' ]
   UsePublicIp:
     !Equals [ !Ref LoadBalancerScheme, 'internet-facing']
 
@@ -208,14 +191,6 @@ Resources:
         "Fn::Base64": !Sub |
           #!/bin/bash -ex
           trap '/opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource AutomateServer' ERR
-          # Update the system first
-          yum upgrade -y
-          # Run before script, make sure to install cfn-init if not installed
-          # attempt to fetch the script first as a signed request (private bucket), then unsigned, then fallback
-          aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/before.sh /root/before.sh || \
-            curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/before.sh -o /root/before.sh || \
-            curl -s https://aws-native-chef-server.s3.amazonaws.com/files/before.sh -o /root/before.sh
-          bash -ex /root/before.sh
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource AutomateServer --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource AutomateServer
@@ -228,20 +203,7 @@ Resources:
         configSets:
           default: [awslogs, automate_setup, nightly_snapshots]
         automate_setup:
-          packages:
-            yum:
-              lvm2: []
-              xfsprogs: []
-              perl: []
-              perl-DateTime: []
-              perl-Sys-Syslog: []
-              perl-LWP-Protocol-https: []
-              perl-Digest-SHA: []
-              zip: []
-              unzip: []
           files:
-            /root/chef-automate.zip:
-              source: https://packages.chef.io/files/current/automate/latest/chef-automate_linux_amd64.zip
             /etc/automate-config.toml:
               content: !Sub
               - |
@@ -335,62 +297,38 @@ Resources:
                 [auth_n.v1.sys.service]
                   a1_data_collector_token = "${AutomateDataCollectorToken}"
               - { FQDN: !If [CreateRoute53Record, !Ref AutomateDNSRecord, !GetAtt ChefALB.DNSName] }
-            /etc/sysctl.d/00-chef.conf:
-              content: |
-                vm.swappiness=10
-                vm.max_map_count=262144
-                vm.dirty_ratio=20
-                vm.dirty_background_ratio=30
-                vm.dirty_expire_centisecs=30000
-            /etc/security/limits.d/20-nproc.conf:
-              content: |
-                *   soft  nproc     65536
-                *   hard  nproc     65536
-                *   soft  nofile    1048576
-                *   hard  nofile    1048576
           commands:
             02_before_script:
               command: |
-                sysctl -p /etc/sysctl.d/00-chef.conf
                 mkdir -p /hab
                 pvs | grep nvme1n1 || pvcreate /dev/nvme1n1
                 vgs | grep data-vg || vgcreate data-vg /dev/nvme1n1
                 lvs | grep data-lv || (lvcreate -n data-lv -l 95%VG data-vg ; mkfs.xfs /dev/data-vg/data-lv)
                 grep hab /proc/mounts || mount /dev/data-vg/data-lv /hab
+                grep 'data--vg-data--lv' /etc/fstab || echo '/dev/mapper/data--vg-data--lv /hab xfs defaults 0 0' >> /etc/fstab
             03_configure_automate:
               command: |
                 cd /root
-                unzip chef-automate.zip -d /usr/local/sbin
-                /usr/local/sbin/chef-automate deploy /etc/automate-config.toml --accept-terms-and-mlsa --skip-preflight
+                /var/cache/marketplace/chef-automate deploy /etc/automate-config.toml --accept-terms-and-mlsa --skip-preflight --airgap-bundle /var/cache/marketplace/chef-automate.bundle
             04_after_script:
-              command: !Sub |
-                # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
-                aws s3 cp s3://${AutomationBucket}/${TemplateVersion}/files/after.sh /root/after.sh || \
-                  curl -s https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/files/after.sh -o /root/after.sh
-                bash -ex /root/after.sh
+              command: |
+                # clean up the chef package cache, to maximize available disk space after install
+                if [ -d /var/cache/marketplace ]; then
+                    rm -f /var/cache/marketplace/*.rpm
+                    rm -f /var/cache/marketplace/*.aib
+                fi
             05_configure_cloudwatch_monitoring:
               command: |
-                mkdir /opt/cloudwatch_monitoring
-                cd /opt/cloudwatch_monitoring
-                curl -s -O http://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.1.zip
-                unzip CloudWatchMonitoringScripts-1.2.1.zip
-                rm -f CloudWatchMonitoringScripts-1.2.1.zip
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
+
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --disk-space-util --disk-path=/hab --from-cron"; } | crontab -
         nightly_snapshots:
-          files:
-            /usr/local/bin/ebs-snapshot.sh:
-              source: https://raw.githubusercontent.com/CaseyLabs/aws-ec2-ebs-automatic-snapshot-bash/master/ebs-snapshot.sh
-              mode: '000755'
           commands:
             create_nightly_backup_cronjob:
               command: |
                 crontab -l | { cat; echo "55 23 * * * root /usr/local/bin/ebs-snapshot.sh"; } | crontab -
         awslogs:
           files:
-            /root/awslogs-agent-setup.py:
-              source: 'https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py'
-              mode: '000755'
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [default]
@@ -445,7 +383,7 @@ Resources:
             01_setup:
               command: !Sub |
                 mkdir -p /var/lib/awslogs
-                python /root/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
+                python /var/cache/marketplace/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
 
 # EC2 System AutoRecovery
 # https://aws.amazon.com/blogs/aws/new-auto-recovery-for-amazon-ec2/
@@ -541,7 +479,7 @@ Resources:
       - Name: MountPath
         Value: '/'
       - Name: Filesystem
-        Value: !If [RHELAmiFlavor, "/dev/nvme0n1p2", "/dev/nvme0n1p1"]
+        Value: "/dev/nvme0n1p1"
 
   DiskSpaceUtilizationDataDisk:
     Type: AWS::CloudWatch::Alarm

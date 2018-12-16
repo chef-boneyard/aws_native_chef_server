@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server Elasticsearch v4.1.0
+Description: Chef Server Elasticsearch 5.0.0
 
 Parameters:
   # Required Parameters
@@ -27,13 +27,15 @@ Parameters:
       'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
       'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ElasticSearchVersion:
-    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.x. (5.5 recommended for new installs)
+    Description: Version of ElasticSearch to use
     Type: String
     Default: '5.5'
     AllowedValues:
     - '2.3'
     - '5.3'
     - '5.5'
+    - '6.2'
+    - '6.3'
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3

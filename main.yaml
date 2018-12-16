@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack v4.1.0
+Description: AWS Native Chef Stack v5.0.0
 
 Parameters:
   # Required Parameters
@@ -95,13 +95,12 @@ Parameters:
       'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
       'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ChefElasticSearchVersion:
-    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.x. (5.5 recommended for new installs)
+    Description: Version of ElasticSearch to use. (5.5 recommended for new installs)
     Type: String
     Default: '5.5'
     AllowedValues:
-    - '2.3'
-    - '5.3'
     - '5.5'
+    - '6.3'
   ChefElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
@@ -171,18 +170,11 @@ Parameters:
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
-    Default: "4.0.1"
+    Default: "5.0.0"
   Route53HostedZone:
     Type: String
     Default: ''
     Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com) for auto-creating a DNS record. Do not append a dot at the end. (Leave blank to disable)
-  AMIFlavor:
-    Description: Choose the AMI Flavor, the High-Perf CentOS image or the stock and paid official RHEL image
-    Type: String
-    Default: 'centos'
-    AllowedValues:
-    - 'centos'
-    - 'rhel'
   LogsRetentionInDays:
     Description: Specifies the number of days you want to retain cloudwatch log events.
     Type: Number
@@ -249,60 +241,14 @@ Conditions:
     !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
   CreateFrontendSecurityGroup:
     !Equals [ !Ref FrontendSecurityGroupId, '' ]
-  RHELAmiFlavor:
-    !Equals [ !Ref AMIFlavor, 'rhel' ]
 
-# Periodically regenerate this list using the 'generate_os_mappings.sh' script
+# STOP:  Do not replace the AMI list unless you 100% know what you're doing
+#        and are fully prepared to lose all support. This template now depends
+#        on AMIs that are pre-baked with all needed packages and scripts.
 Mappings:
   AMI:
-    eu-north-1:
-      rhel: ami-66f67f18
-      centos: ami-00d82e36d4cf13239
-    ap-south-1:
-      rhel: ami-0963937a03c01ecd4
-      centos: ami-0d121b70d4f2a7c07
-    eu-west-3:
-      rhel: ami-0c4224e392ec4e440
-      centos: ami-0cb3a832f7fa08045
-    eu-west-2:
-      rhel: ami-0188c0c5eddd2d032
-      centos: ami-0dd3bbb85610696bb
-    eu-west-1:
-      rhel: ami-0202869bdd0fc8c75
-      centos: ami-0355255a4ed05d5af
-    ap-northeast-2:
-      rhel: ami-041b16ca28f036753
-      centos: ami-0c3e242e39ef33638
-    ap-northeast-1:
-      rhel: ami-00b95502a4d51a07e
-      centos: ami-02c58f1040d612a45
-    sa-east-1:
-      rhel: ami-05c1c16cac05a7c0b
-      centos: ami-0c7108774ddaedbaf
-    ca-central-1:
-      rhel: ami-06ca3c0058d0275b3
-      centos: ami-0dfd14de667c4e8c9
-    ap-southeast-1:
-      rhel: ami-055c55112e25b1f1f
-      centos: ami-0d4af852545da36f7
-    ap-southeast-2:
-      rhel: ami-036b423b657376f5b
-      centos: ami-0fa6aa803dc7f6191
-    eu-central-1:
-      rhel: ami-09de4a4c670389e4b
-      centos: ami-0ba5a0a4a8e5d70c1
     us-east-1:
-      rhel: ami-000db10762d0c4c05
-      centos: ami-062a84bcfcb87a1ab
-    us-east-2:
-      rhel: ami-094720ddca649952f
-      centos: ami-05e444eb3b5bb499f
-    us-west-1:
-      rhel: ami-04642fc8fca1e8e67
-      centos: ami-0719ffe132cd3bc6c
-    us-west-2:
-      rhel: ami-0a7e1ebfee7a4570e
-      centos: ami-05178c5d62c39cb82
+      centos: ami-0e872ec37c03b64cc
 
 Resources:
   ChefRole:
@@ -460,16 +406,12 @@ Resources:
     Properties:
       TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/automate.yaml
       Parameters:
-        AutomationBucket: !Ref AutomationBucket
         VPC: !Ref VPC
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
         AutomateSubnet: !Select [ "0", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref AutomateSSLCertificateARN
         InboundAdminSecurityGroupId: !Ref InboundAdminSecurityGroupId
-        ImageId: !If
-          - RHELAmiFlavor
-          - !FindInMap [AMI, !Ref "AWS::Region", rhel]
-          - !FindInMap [AMI, !Ref "AWS::Region", centos]
+        ImageId: !FindInMap [AMI, !Ref "AWS::Region", centos]
         KeyName: !Ref KeyName
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
@@ -483,10 +425,8 @@ Resources:
         AutomateIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref AutomateDnsRecordName
-        AMIFlavor: !Ref AMIFlavor
         SystemLogsGroup: !Ref SystemLogs
         AppLogsGroup: !Ref AutomateAppLogs
-        TemplateVersion: !Ref TemplateVersion
 
 # Chef Server Stack
 #########################################################################################
@@ -500,10 +440,7 @@ Resources:
         ChefServerSubnets: !Join [ ",", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref ChefSSLCertificateARN
         InboundAdminSecurityGroupId: !Ref InboundAdminSecurityGroupId
-        ImageId: !If
-          - RHELAmiFlavor
-          - !FindInMap [AMI, !Ref "AWS::Region", rhel]
-          - !FindInMap [AMI, !Ref "AWS::Region", centos]
+        ImageId: !FindInMap [AMI, !Ref "AWS::Region", centos]
         KeyName: !Ref KeyName
         DBPassword: !Ref ChefDBPassword
         ContactEmail: !Ref ContactEmail
@@ -527,7 +464,6 @@ Resources:
         ChefAutomateToken: !Ref ChefAutomateToken
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref ChefServerDnsRecordName
-        AMIFlavor: !Ref AMIFlavor
         SystemLogsGroup: !Ref SystemLogs
         AppLogsGroup: !Ref ChefAppLogs
         TemplateVersion: !Ref TemplateVersion
@@ -539,16 +475,12 @@ Resources:
     Properties:
       TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/supermarket.yaml
       Parameters:
-        AutomationBucket: !Ref AutomationBucket
         VPC: !Ref VPC
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
         SupermarketSubnet: !Select [ "0", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref SupermarketSSLCertificateARN
         InboundAdminSecurityGroupId: !Ref InboundAdminSecurityGroupId
-        ImageId: !If
-          - RHELAmiFlavor
-          - !FindInMap [AMI, !Ref "AWS::Region", rhel]
-          - !FindInMap [AMI, !Ref "AWS::Region", centos]
+        ImageId: !FindInMap [AMI, !Ref "AWS::Region", centos]
         KeyName: !Ref KeyName
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
@@ -564,10 +496,8 @@ Resources:
         ChefStackName: !GetAtt ChefServerStack.Outputs.StackName
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref SupermarketDnsRecordName
-        AMIFlavor: !Ref AMIFlavor
         SystemLogsGroup: !Ref SystemLogs
         AppLogsGroup: !Ref SupermarketAppLogs
-        TemplateVersion: !Ref TemplateVersion
 
 Outputs:
   AutomateUrl:
@@ -587,7 +517,4 @@ Outputs:
       Name: !Sub "${AWS::StackName}-SupermarketURL"
   AutomateAdminPassword:
     Description: The password for the Chef Automate admin user
-    Value: !If
-          - RHELAmiFlavor
-          - !Sub "To retrieve, run: ssh ec2-user@${AutomateStack.Outputs.ServerIP} sudo cat /root/automate-credentials.toml"
-          - !Sub "To retrieve, run: ssh centos@${AutomateStack.Outputs.ServerIP} sudo cat /root/automate-credentials.toml"
+    Value: !Sub "To retrieve, run: ssh centos@${AutomateStack.Outputs.ServerIP} sudo cat /root/automate-credentials.toml"

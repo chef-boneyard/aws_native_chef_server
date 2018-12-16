@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack for Marketplace v4.0.1
+Description: AWS Native Chef Stack for Marketplace v5.0.0
 
 Parameters:
   # Required Parameters
@@ -14,13 +14,13 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
   InboundClientCidr:
     Description: Your internal network range in CIDR notation, from where client traffic will originate
-    Default: "0.0.0.0/0"
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    ConstraintDescription: Must be in CIDR notation (e.g. 10.0.0.0/8 or 0.0.0.0/0)
     Type: String
   InboundAdminCidr:
     Description: Your internal administrative network source range in CIDR notation
-    Default: "0.0.0.0/0"
     AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    ConstraintDescription: Must be in CIDR notation (e.g. 10.0.0.0/8 or 0.0.0.0/0)
     Type: String
   ContactEmail:
     Description: Contact email for Cloudwatch notifications and instance tagging
@@ -111,13 +111,12 @@ Parameters:
       'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
       'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ChefElasticSearchVersion:
-    Description: Version of ElasticSearch to use. Chef 12.16 supports v2.3 or 5.x. (5.5 recommended for new installs)
+    Description: Version of ElasticSearch to use. (5.5 recommended for new installs)
     Type: String
     Default: '5.5'
     AllowedValues:
-    - '2.3'
-    - '5.3'
     - '5.5'
+    - '6.3'
   ChefElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
@@ -168,7 +167,7 @@ Parameters:
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
-    Default: "4.0.1"
+    Default: "5.0.0"
   LogsRetentionInDays:
     Description: Specifies the number of days you want to retain cloudwatch log events.
     Type: Number
@@ -228,10 +227,13 @@ Metadata:
           - LoadBalancerScheme
           - AssociatePublicIpAddress
 
+# STOP:  Do not replace the AMI list unless you 100% know what you're doing
+#        and are fully prepared to lose all support. This template now depends
+#        on AMIs that are pre-baked with all needed packages and scripts.
 Mappings:
   AMI:
     us-east-1:
-      centos: ami-00f4a8ce072b2a289
+      centos: ami-0e872ec37c03b64cc
 
 Resources:
   ChefRole:
@@ -399,7 +401,6 @@ Resources:
     Properties:
       TemplateURL: !Sub https://s3.amazonaws.com/marketplace-chef-stack/${TemplateVersion}/automate.yaml
       Parameters:
-        AutomationBucket: marketplace-chef-stack
         VPC: !Ref VPC
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
         AutomateSubnet: !Select [ "0", !Ref ServerSubnets ]
@@ -419,10 +420,8 @@ Resources:
         AutomateIamRole: !Ref ChefRole
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref AutomateDnsRecordName
-        AMIFlavor: centos
         SystemLogsGroup: !Ref SystemLogs
         AppLogsGroup: !Ref AutomateAppLogs
-        TemplateVersion: !Ref TemplateVersion
 
 # Chef Server Stack
 #########################################################################################
@@ -460,7 +459,6 @@ Resources:
         ChefAutomateToken: !Ref ChefAutomateToken
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref ChefServerDnsRecordName
-        AMIFlavor: centos
         SystemLogsGroup: !Ref SystemLogs
         AppLogsGroup: !Ref ChefAppLogs
         TemplateVersion: !Ref TemplateVersion
@@ -472,7 +470,6 @@ Resources:
     Properties:
       TemplateURL: !Sub https://s3.amazonaws.com/marketplace-chef-stack/${TemplateVersion}/supermarket.yaml
       Parameters:
-        AutomationBucket: marketplace-chef-stack
         VPC: !Ref VPC
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
         SupermarketSubnet: !Select [ "0", !Ref ServerSubnets ]
@@ -494,10 +491,8 @@ Resources:
         ChefStackName: !GetAtt ChefServerStack.Outputs.StackName
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref SupermarketDnsRecordName
-        AMIFlavor: centos
         SystemLogsGroup: !Ref SystemLogs
         AppLogsGroup: !Ref SupermarketAppLogs
-        TemplateVersion: !Ref TemplateVersion
 
 Outputs:
   AutomateUrl:
