@@ -417,7 +417,7 @@ Resources:
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
-          default: [awslogs, es_proxy_setup, chef_server_setup, filebeat]
+          default: [awslogs, es_proxy_setup, chef_server_setup, filebeat, final_stage]
         es_proxy_setup:
           files:
             /etc/systemd/system/aws-signing-proxy.service:
@@ -525,13 +525,6 @@ Resources:
                 export WAITHANDLE="${WaitHandle}"
 
                 bash -x /var/cache/marketplace/main.sh
-            04_after_script:
-              command: |
-                # clean up the chef package cache, to maximize available disk space after install
-                if [ -d /var/cache/marketplace ]; then
-                    rm -f /var/cache/marketplace/*.rpm
-                    rm -f /var/cache/marketplace/*.aib
-                fi
             05_configure_cloudwatch_monitoring:
               command: |
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --auto-scaling --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
@@ -669,6 +662,15 @@ Resources:
               command: |
                 rpm -ivh /var/cache/marketplace/filebeat-5.6.6-x86_64.rpm
                 systemctl daemon-reload && systemctl start filebeat.service
+        final_stage:
+          commands:
+            09_cleanup:
+              command: |
+                # clean up the chef package cache, to maximize available disk space after install
+                if [ -d /var/cache/marketplace ]; then
+                    rm -f /var/cache/marketplace/*.rpm
+                    rm -f /var/cache/marketplace/*.aib
+                fi
 
   WaitCondition:
     Type: AWS::CloudFormation::WaitCondition

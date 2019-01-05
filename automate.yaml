@@ -201,7 +201,7 @@ Resources:
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
-          default: [awslogs, automate_setup, nightly_snapshots]
+          default: [awslogs, automate_setup, nightly_snapshots, final_stage]
         automate_setup:
           files:
             /etc/automate-config.toml:
@@ -310,13 +310,6 @@ Resources:
               command: |
                 cd /root
                 /var/cache/marketplace/chef-automate deploy /etc/automate-config.toml --accept-terms-and-mlsa --skip-preflight --airgap-bundle /var/cache/marketplace/chef-automate.bundle
-            04_after_script:
-              command: |
-                # clean up the chef package cache, to maximize available disk space after install
-                if [ -d /var/cache/marketplace ]; then
-                    rm -f /var/cache/marketplace/*.rpm
-                    rm -f /var/cache/marketplace/*.aib
-                fi
             05_configure_cloudwatch_monitoring:
               command: |
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -
@@ -384,6 +377,15 @@ Resources:
               command: !Sub |
                 mkdir -p /var/lib/awslogs
                 python /var/cache/marketplace/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
+        final_stage:
+          commands:
+            09_cleanup:
+              command: |
+                # clean up the chef package cache, to maximize available disk space after install
+                if [ -d /var/cache/marketplace ]; then
+                    rm -f /var/cache/marketplace/*.rpm
+                    rm -f /var/cache/marketplace/*.aib
+                fi
 
 # EC2 System AutoRecovery
 # https://aws.amazon.com/blogs/aws/new-auto-recovery-for-amazon-ec2/
