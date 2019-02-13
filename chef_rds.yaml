@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server PostgreSQL v5.0.0
+Description: Chef Server PostgreSQL v5.0.1
 
 Parameters:
   # Required Parameters
@@ -22,13 +22,18 @@ Parameters:
   ###############################################################################
   # Performance Settings
   DBInstanceClass:
-    Description: EC2 Instance type for RDS DBs (EBS Optimized instances recommended)
-    Default: 'db.m4.large'
+    Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
+    Default: 'db.m5.large'
     Type: String
-    AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
+    AllowedValues: [db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
       db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
       db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
+  DBStorageType:
+    Description: Select gp2 or io1 DB storage. io1 is much higher performing, must select minimum 100GB storage and an IOPS value
+    Default: 'gp2'
+    Type: String
+    AllowedValues: [gp2, io1]
   DBAllocatedStorage:
     Description: Storage size allocated for the database
     Default: '100'
@@ -47,6 +52,10 @@ Parameters:
   AlertNotificationTopic:
     Description: SNS topic
     Type: String
+
+Conditions:
+  UsePiopsStorage:
+    !Equals [ !Ref DBStorageType, 'io1' ]
 
 Resources:
   DBSecurityGroup:
@@ -72,14 +81,14 @@ Resources:
     Properties:
       DBName: chef
       AllocatedStorage: !Ref DBAllocatedStorage
-      Iops: !Ref DBIops
+      Iops: !If [UsePiopsStorage, !Ref DBIops, 0]
       MasterUsername: chefadmin
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: !Ref DBInstanceClass
-      StorageType: io1
+      StorageType: !Ref DBStorageType
       MultiAZ: true
       Engine: postgres
-      EngineVersion: 9.6.10
+      EngineVersion: 9.6.11
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: '35'

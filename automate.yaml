@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Automate 2 (auto-recovering standalone) v5.0.0
+Description: AWS Native Automate 2 (auto-recovering standalone) v5.0.1
 
 Parameters:
   # Required Parameters
@@ -163,7 +163,7 @@ Resources:
       BlockDeviceMappings:
       - DeviceName: /dev/sda1
         Ebs:
-          VolumeSize: 100
+          VolumeSize: 20
           VolumeType: gp2
           DeleteOnTermination: true
       - DeviceName: /dev/xvdb

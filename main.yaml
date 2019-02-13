@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack v5.0.0
+Description: AWS Native Chef Stack v5.0.1
 
 Parameters:
   # Required Parameters
@@ -57,20 +57,25 @@ Parameters:
     Type: String
     Default: 'chef'
   ChefInstanceType:
-    Description: EC2 Instance type for Chef Server Frontends (high-CPU recommended)
+    Description: EC2 Instance type for Chef Server Frontends (C5 recommended for performance)
     Default: c5.large
     Type: String
     AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
       c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
   ChefDBInstanceClass:
-    Description: EC2 Instance type for RDS DBs (EBS Optimized instances recommended)
+    Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
     Default: 'db.m5.large'
     Type: String
-    AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
+    AllowedValues: [db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
       db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
       db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
+  ChefDBStorageType:
+    Description: Select gp2 or io1 DB storage. io1 is much higher performing, must select minimum 100GB storage and an IOPS value
+    Default: 'gp2'
+    Type: String
+    AllowedValues: [gp2, io1]
   ChefDBAllocatedStorage:
     Description: Storage size in GB allocated for the database (minimum 100, maximum 32768)
     Default: '100'
@@ -170,7 +175,7 @@ Parameters:
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
-    Default: "5.0.0"
+    Default: "5.0.1"
   Route53HostedZone:
     Type: String
     Default: ''
@@ -448,6 +453,7 @@ Resources:
         AlertNotificationTopic: !Ref AlertNotificationTopic
         InstanceType: !Ref ChefInstanceType
         DBInstanceClass: !Ref ChefDBInstanceClass
+        DBStorageType: !Ref ChefDBStorageType
         DBAllocatedStorage: !Ref ChefDBAllocatedStorage
         DBIops: !Ref ChefDBIops
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType

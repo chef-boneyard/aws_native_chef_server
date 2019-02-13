@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server (auto-scaling HA) v5.0.0
+Description: AWS Native Chef Server (auto-scaling HA) v5.0.1
 
 Parameters:
   # Required Parameters
@@ -60,13 +60,18 @@ Parameters:
     Description: Enter how many licenses you have purchased
     Type: String
   DBInstanceClass:
-    Description: EC2 Instance type for RDS DBs (EBS Optimized instances recommended)
+    Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
     Default: 'db.m5.large'
     Type: String
-    AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
+    AllowedValues: [db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
       db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
       db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
+  DBStorageType:
+    Description: Select gp2 or io1 DB storage. io1 is much higher performing, must select minimum 100GB storage and an IOPS value
+    Default: 'gp2'
+    Type: String
+    AllowedValues: [gp2, io1]
   DBAllocatedStorage:
     Description: Storage size allocated for the database
     Default: '100'
@@ -170,7 +175,7 @@ Parameters:
     Type: String
   TemplateVersion:
     Type: String
-    Default: "5.0.0"
+    Default: "5.0.1"
 
 Metadata:
   cfn-lint:
@@ -695,6 +700,7 @@ Resources:
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
         DBInstanceClass: !Ref DBInstanceClass
+        DBStorageType: !Ref DBStorageType
         DBAllocatedStorage: !Ref DBAllocatedStorage
         DBIops: !Ref DBIops
         FrontendSecurityGroupId: !Ref FrontendSecurityGroupId
