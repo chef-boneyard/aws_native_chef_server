@@ -100,6 +100,12 @@ Parameters:
     Description: IOPS allocated to the storage (storage size * 10)
     Default: '1000'
     Type: String
+  ChefDBBackupDaystoKeep:
+    Description: Number of days of automatic DB backups to keep
+    Default: 7
+    Type: Number
+    MinValue: 0
+    MaxValue: 35
   ChefDBPassword:
     Description: Enter DB Password
     NoEcho: true
@@ -215,6 +221,7 @@ Metadata:
         - ChefDBStorageType
         - ChefDBAllocatedStorage
         - ChefDBIops
+        - ChefDBBackupDaystoKeep
         - ChefDBPassword
         - ChefElasticSearchInstanceType
         - ChefElasticSearchVersion
@@ -452,6 +459,7 @@ Resources:
         DBStorageType: !Ref ChefDBStorageType
         DBAllocatedStorage: !Ref ChefDBAllocatedStorage
         DBIops: !Ref ChefDBIops
+        DBBackupDaystoKeep: !Ref ChefDBBackupDaystoKeep
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount

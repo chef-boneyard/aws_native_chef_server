@@ -73,7 +73,7 @@ Parameters:
       db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
   ChefDBStorageType:
     Description: Select gp2 or io1 DB storage. io1 is much higher performing, must select minimum 100GB storage and an IOPS value
-    Default: 'gp2'
+    Default: 'io1'
     Type: String
     AllowedValues: [gp2, io1]
   ChefDBAllocatedStorage:
@@ -84,6 +84,12 @@ Parameters:
     Description: IOPS allocated to the storage (storage size * 10)
     Default: '1000'
     Type: String
+  ChefDBBackupDaystoKeep:
+    Description: Number of days of automatic backups to keep
+    Default: 7
+    Type: Number
+    MinValue: 0
+    MaxValue: 35
   ChefDBPassword:
     Description: Enter DB Password
     NoEcho: true
@@ -456,6 +462,7 @@ Resources:
         DBStorageType: !Ref ChefDBStorageType
         DBAllocatedStorage: !Ref ChefDBAllocatedStorage
         DBIops: !Ref ChefDBIops
+        DBBackupDaystoKeep: !Ref ChefDBBackupDaystoKeep
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount

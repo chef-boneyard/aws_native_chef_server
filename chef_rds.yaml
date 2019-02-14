@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server PostgreSQL v5.0.1
+Description: Chef Server PostgreSQL v5.0.0
 
 Parameters:
   # Required Parameters
@@ -48,6 +48,14 @@ Parameters:
     Description: Supply a security group for your chef frontends
     Type: AWS::EC2::SecurityGroup::Id
   ###############################################################################
+  # Backup settings
+  BackupDaystoKeep:
+    Description: Number of days of automatic backups to keep
+    Default: 7
+    Type: Number
+    MinValue: 0
+    MaxValue: 35
+  ###############################################################################
   # Input from Parent Stack
   AlertNotificationTopic:
     Description: SNS topic
@@ -91,7 +99,7 @@ Resources:
       EngineVersion: 9.6.11
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
-      BackupRetentionPeriod: '35'
+      BackupRetentionPeriod: !Ref BackupDaystoKeep
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref DBSecurityGroup

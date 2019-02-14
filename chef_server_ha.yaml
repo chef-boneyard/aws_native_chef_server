@@ -80,6 +80,12 @@ Parameters:
     Description: IOPS allocated to the storage (storage size * 10)
     Default: '1000'
     Type: String
+  DBBackupDaystoKeep:
+    Description: Number of days of automatic backups to keep
+    Default: 7
+    Type: Number
+    MinValue: 0
+    MaxValue: 35
   ElasticSearchInstanceType:
     Description: The Instance type to use for ElasticSearch instances (Note, must have ephemeral storage, the instance type affects the total amount of elasticsearch storage. i3 strongly recommended)
     Type: String
@@ -703,6 +709,7 @@ Resources:
         DBStorageType: !Ref DBStorageType
         DBAllocatedStorage: !Ref DBAllocatedStorage
         DBIops: !Ref DBIops
+        BackupDaystoKeep: !Ref DBBackupDaystoKeep
         FrontendSecurityGroupId: !Ref FrontendSecurityGroupId
         AlertNotificationTopic: !Ref AlertNotificationTopic
 
