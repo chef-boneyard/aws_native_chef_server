@@ -432,7 +432,7 @@ Resources:
             # aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
           }" ERR
           # Update the system first
-          yum upgrade --exclude="kernel*" --exclude="dracut*" -y
+          yum upgrade -y
           # Run before script, make sure to install cfn-init if not installed
           # attempt to fetch the script first as a signed request (private bucket), then unsigned (public bucket)
           aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \

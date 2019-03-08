@@ -204,7 +204,7 @@ Resources:
           #!/bin/bash -ex
           trap '/opt/aws/bin/cfn-signal -e 1 --region ${AWS::Region} --stack ${AWS::StackName} --resource AutomateServer' ERR
           # Update the system first
-          yum upgrade --exclude="kernel*" --exclude="dracut*" -y
+          yum upgrade -y
           # Run before script, make sure to install cfn-init if not installed
           # attempt to fetch the script first as a signed request (private bucket), then unsigned, then fallback
           aws s3 cp s3://${AutomationBucket}/files/before.sh /root/before.sh || \

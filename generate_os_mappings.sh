@@ -4,8 +4,8 @@
 # RHEL: aws ec2 describe-images --owners 309956199498 --filters "Name=name,Values=RHEL-7.6*" --query "Images[*].Name" --output text
 # CentOS highperf: `aws ec2 describe-images --owners 446539779517 --filters "Name=name,Values=chef-highperf-centos7*" --query "Images[*].Name" | sort`
 
-RHEL_RELEASE='RHEL-7.6_HVM_BETA-20180814-x86_64-0-Hourly2-GP2'
-CENTOS_RELEASE='chef-highperf-centos7-201808171554'
+RHEL_RELEASE='RHEL-7.6_HVM_GA-20190128-x86_64-0-Hourly2-GP2'
+CENTOS_RELEASE='chef-highperf-centos7-201902131539'
 
 printf "Mappings:\n  AMI:\n"
 
