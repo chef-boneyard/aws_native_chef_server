@@ -34,10 +34,11 @@ Parameters:
     - '2.3'
     - '5.3'
     - '5.5'
+    - '5.6'
     - '6.2'
     - '6.3'
   ElasticSearchShardCount:
-    Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
+    Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
     Default: 3
     Type: Number
   ###############################################################################
@@ -74,7 +75,7 @@ Resources:
       ElasticsearchVersion: !Ref ElasticSearchVersion
       ElasticsearchClusterConfig:
         InstanceCount: !Sub ${ElasticSearchShardCount}
-        ZoneAwarenessEnabled: false
+        ZoneAwarenessEnabled: true
         InstanceType: !Ref ElasticSearchInstanceType
         DedicatedMasterEnabled: false
       SnapshotOptions:

@@ -77,7 +77,7 @@ Parameters:
     Type: String
     AllowedValues: [gp2, io1]
   ChefDBAllocatedStorage:
-    Description: Storage size in GB allocated for the database (minimum 100, maximum 32768)
+    Description: Storage size allocated for the database (gp2 minimum 20, maximum 16000) (io1 minimum 100, maximum 32768)
     Default: '100'
     Type: String
   ChefDBIops:
@@ -97,7 +97,7 @@ Parameters:
     MinLength: 8
     MaxLength: 64
   ChefElasticSearchInstanceType:
-    Description: The Instance type to use for ElasticSearch instances (Note, must have ephemeral storage, the instance type affects the total amount of elasticsearch storage. i3 strongly recommended)
+    Description: The Instance type to use for ElasticSearch instances (i3 recommended for performance)
     Type: String
     Default: 'i3.large.elasticsearch'
     AllowedValues: [
@@ -106,20 +106,19 @@ Parameters:
       'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
       'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ChefElasticSearchVersion:
-    Description: Version of ElasticSearch to use. (5.5 recommended for new installs)
+    Description: Version of ElasticSearch to use. (5.6 recommended for new installs)
     Type: String
-    Default: '5.5'
+    Default: '5.6'
     AllowedValues:
+    - '5.3'
     - '5.5'
-    - '6.3'
+    - '5.6'
   ChefElasticSearchShardCount:
-    Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
+    Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
     Default: 3
     Type: Number
-  ChefElasticSearchReplicaCount:
-    Description: Replication factor for ElasticSearch sha vrds (how many extra copies to keep)
-    Default: 2
-    Type: Number
+    MinValue: 2
+    MaxValue: 3
   ###############################################################################
   # Automate Stack Settings
   SupermarketSSLCertificateARN:
@@ -197,51 +196,6 @@ Metadata:
     config:
       ignore_checks:
         - W2507
-  # AWS::CloudFormation::Interface:
-    # ParameterGroups:
-    #   - Label:
-    #       default: "Required Parameters"
-    #     Parameters:
-    #       - VPC
-    #       - ChefServerSubnets
-    #       - SSLCertificateARN
-    #       - InboundAdminSecurityGroupId
-    #       - KeyName
-    #       - DBPassword
-    #       - ContactEmail
-    #       - ContactDept
-    #   - Label:
-    #       default: "Performance Settings"
-    #     Parameters:
-    #       - InstanceType
-    #       - MaxFrontendInstances
-    #       - MinFrontendInstances
-    #       - LicenseCount
-    #       - DBInstanceClass
-    #       - DBAllocatedStorage
-    #       - DBIops
-    #       - ElasticSearchInstanceType
-    #       - ElasticSearchVersion
-    #       - ElasticSearchShardCount
-    #       - ElasticSearchReplicaCount
-    #   - Label:
-    #       default: "Package Versions & Locations"
-    #     Parameters:
-    #       - ChefServerPackage
-    #       - ChefManagePackage
-    #       - PushJobsPackage
-    #       - BeforeScriptLocation
-    #       - AfterScriptLocation
-    #   - Label:
-    #       default: "Security Settings"
-    #     Parameters:
-    #       - LoadBalancerScheme
-    #       - LoadBalancerSecurityGroupId
-    #       - FrontendSecurityGroupId
-    #       - ChefServerAssociatePublicIpAddress
-    #       - DisableSignup
-    #       - ChefServerIamRole
-    #       - ChefSecretsBucket
 
 Conditions:
   CreateChefIamRole:
@@ -259,7 +213,7 @@ Conditions:
 Mappings:
   AMI:
     us-east-1:
-      centos: ami-0e872ec37c03b64cc
+      centos: ami-02e41da72211f7970
 
 Resources:
   ChefRole:
@@ -466,7 +420,6 @@ Resources:
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount
-        ElasticSearchReplicaCount: !Ref ChefElasticSearchReplicaCount
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
