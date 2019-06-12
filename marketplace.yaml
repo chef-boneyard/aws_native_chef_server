@@ -244,7 +244,9 @@ Metadata:
 Mappings:
   AMI:
     us-east-1:
-      centos: ami-02e41da72211f7970
+      centos: ami-0967213b41854a0f8
+    us-west-2:
+      centos: ami-0c86c229e3ca84435
 
 Resources:
   ChefRole:
