@@ -37,6 +37,7 @@ Parameters:
     - '5.6'
     - '6.2'
     - '6.3'
+    - '6.7'
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
     Default: 3
@@ -54,6 +55,10 @@ Parameters:
   AlertNotificationTopic:
     Description: SNS topic
     Type: String
+
+Conditions:
+  2ZoneES:
+    !Equals [!Ref ElasticSearchShardCount, 2]
 
 Resources:
 # ElasticSearch
@@ -75,7 +80,7 @@ Resources:
       ElasticsearchVersion: !Ref ElasticSearchVersion
       ElasticsearchClusterConfig:
         InstanceCount: !Sub ${ElasticSearchShardCount}
-        ZoneAwarenessEnabled: true
+        ZoneAwarenessEnabled: !If [2ZoneES, true, false]
         InstanceType: !Ref ElasticSearchInstanceType
         DedicatedMasterEnabled: false
       SnapshotOptions:
@@ -89,8 +94,11 @@ Resources:
             Action: "es:*"
             Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:*"
       VPCOptions:
-        SubnetIds:
-          - !Select [ 0, !Ref ChefServerSubnets ]
+        SubnetIds: !If [
+          2ZoneES,
+          [ !Select [ 0, !Ref ChefServerSubnets ], !Select [ 1, !Ref ChefServerSubnets ]],
+          [ !Select [ 0, !Ref ChefServerSubnets ] ]
+        ]
         SecurityGroupIds:
           - !Ref ESSecurityGroup
       AdvancedOptions:

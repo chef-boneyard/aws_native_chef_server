@@ -25,7 +25,7 @@ Parameters:
     Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
     Default: 'db.m5.large'
     Type: String
-    AllowedValues: [db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
+    AllowedValues: [db.t3.small, db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
       db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
       db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
@@ -96,7 +96,7 @@ Resources:
       StorageType: !Ref DBStorageType
       MultiAZ: true
       Engine: postgres
-      EngineVersion: 9.6.11
+      EngineVersion: 9.6.12
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: !Ref BackupDaystoKeep

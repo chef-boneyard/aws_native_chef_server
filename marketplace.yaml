@@ -3,6 +3,10 @@ Description: AWS Native Chef Stack for Marketplace v5.0.1
 
 Parameters:
   # Required Parameters
+  AutomationBucket:
+    Default: 'aws-native-chef-server'
+    Type: String
+    Description: AWS S3 bucket name that contains all of the cloudformation templates and scripts for this stack
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
@@ -51,7 +55,7 @@ Parameters:
     Default: 'automate'
   AutomateInstanceType:
     Description: EC2 Instance type for Automate server (M5 class recommended)
-    Default: t3.large
+    Default: t3.medium
     Type: String
     AllowedValues: [t3.medium, t3.large, t3.xlarge, t3.2xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
@@ -74,16 +78,16 @@ Parameters:
     Default: 'chef'
   ChefInstanceType:
     Description: EC2 Instance type for Chef Server Frontends (C5 recommended for performance)
-    Default: t3.medium
+    Default: t3.small
     Type: String
     AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
       c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
   ChefDBInstanceClass:
     Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
-    Default: 'db.t3.medium'
+    Default: 'db.t3.small'
     Type: String
-    AllowedValues: [db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
+    AllowedValues: [db.t3.small, db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
       db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
       db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
@@ -102,7 +106,7 @@ Parameters:
     Type: String
   ChefDBBackupDaystoKeep:
     Description: Number of days of automatic DB backups to keep
-    Default: 7
+    Default: 5
     Type: Number
     MinValue: 0
     MaxValue: 35
@@ -126,9 +130,8 @@ Parameters:
     Type: String
     Default: '5.6'
     AllowedValues:
-    - '5.3'
-    - '5.5'
     - '5.6'
+    - '6.7'
   ChefElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
     Default: 2
@@ -147,7 +150,7 @@ Parameters:
     Default: 'supermarket'
   SupermarketInstanceType:
     Description: EC2 Instance type for Supermarket server (M5 class recommended)
-    Default: t3.medium
+    Default: t3.small
     Type: String
     AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
@@ -183,6 +186,10 @@ Parameters:
     Type: Number
     Default: 90
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+
+Conditions:
+  2ZoneES:
+    !Equals [!Ref ChefElasticSearchShardCount, 2]
 
 Metadata:
   cfn-lint:
@@ -308,14 +315,6 @@ Resources:
       Roles:
       - !Ref ChefRole
 
-  # # This is needed because on older VPCs the servicelinkedrole for ES doesn't exist
-  # AWSServiceRoleForAmazonElasticsearchService:
-  #   Type: "AWS::IAM::ServiceLinkedRole"
-  #   Properties:
-  #     AWSServiceName: "es.amazonaws.com"
-  #     Description: "Created by AWS Native Chef Stack"
-  #     # CustomSuffix: "TestSuffix"
-
   ChefBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -420,7 +419,7 @@ Resources:
   AutomateStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/marketplace-chef-stack/${TemplateVersion}/automate.yaml
+      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/automate.yaml
       Parameters:
         VPC: !Ref VPC
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
@@ -449,9 +448,9 @@ Resources:
   ChefServerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/marketplace-chef-stack/${TemplateVersion}/chef_server_ha.yaml
+      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/chef_server_ha.yaml
       Parameters:
-        AutomationBucket: marketplace-chef-stack
+        AutomationBucket: !Ref AutomationBucket
         VPC: !Ref VPC
         ChefServerSubnets: !Join [ ",", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref ChefSSLCertificateARN
@@ -471,6 +470,7 @@ Resources:
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount
+        ElasticSearchReplicaCount: !If [2ZoneES, 1, 2]
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
         FrontendSecurityGroupId: !Ref FrontendSecurityGroup
@@ -490,7 +490,7 @@ Resources:
   SupermarketStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/marketplace-chef-stack/${TemplateVersion}/supermarket.yaml
+      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/supermarket.yaml
       Parameters:
         VPC: !Ref VPC
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]

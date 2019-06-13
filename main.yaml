@@ -177,6 +177,10 @@ Parameters:
     Description: The secret token used to communicate with the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
     Type: String
     Default: 93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506
+    AllowedPattern: ^[a-z0-9]*$
+    MinLength: 64
+    MaxLength: 64
+    ConstraintDescription: Must be 64 alphanumeric characters
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String

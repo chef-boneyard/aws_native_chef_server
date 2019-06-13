@@ -63,7 +63,7 @@ Parameters:
     Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
     Default: 'db.m5.large'
     Type: String
-    AllowedValues: [db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
+    AllowedValues: [db.t3.small, db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
       db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
       db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
@@ -105,12 +105,13 @@ Parameters:
     - '5.5'
     - '5.6'
     - '6.3'
+    - '6.7'
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended)
     Default: 3
     Type: Number
   ElasticSearchReplicaCount:
-    Description: Replication factor for ElasticSearch sha vrds (how many extra copies to keep)
+    Description: Replication factor for ElasticSearch shards (how many extra copies to keep)
     Default: 2
     Type: Number
   ###############################################################################
