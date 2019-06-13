@@ -111,7 +111,7 @@ Parameters:
     MinValue: 0
     MaxValue: 35
   ChefDBPassword:
-    Description: Enter DB Password
+    Description: Create a strong RDS admin password
     NoEcho: true
     Type: String
     MinLength: 8
@@ -208,10 +208,13 @@ Metadata:
           - ContactEmail
           - ContactDept
           - Route53HostedZone
+          - AutomateSSLCertificateARN
+          - ChefSSLCertificateARN
+          - SupermarketSSLCertificateARN
+          - ChefDBPassword
       - Label:
           default: "Chef Automate 2 Settings"
         Parameters:
-          - AutomateSSLCertificateARN
           - ChefAutomateToken
           - AutomateDnsRecordName
           - AutomateInstanceType
@@ -219,22 +222,19 @@ Metadata:
       - Label:
           default: "Chef Server Settings"
         Parameters:
-        - ChefSSLCertificateARN
-        - ChefServerDnsRecordName
-        - ChefInstanceType
-        - ChefDBInstanceClass
-        - ChefDBStorageType
-        - ChefDBAllocatedStorage
-        - ChefDBIops
-        - ChefDBBackupDaystoKeep
-        - ChefDBPassword
-        - ChefElasticSearchInstanceType
-        - ChefElasticSearchVersion
-        - ChefElasticSearchShardCount
+          - ChefServerDnsRecordName
+          - ChefInstanceType
+          - ChefDBInstanceClass
+          - ChefDBStorageType
+          - ChefDBAllocatedStorage
+          - ChefDBIops
+          - ChefDBBackupDaystoKeep
+          - ChefElasticSearchInstanceType
+          - ChefElasticSearchVersion
+          - ChefElasticSearchShardCount
       - Label:
           default: "Supermarket Settings"
         Parameters:
-          - SupermarketSSLCertificateARN
           - SupermarketDnsRecordName
           - SupermarketInstanceType
           - SupermarketDataVolumeSize
