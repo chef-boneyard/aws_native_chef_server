@@ -131,7 +131,6 @@ Parameters:
     Default: '5.6'
     AllowedValues:
     - '5.6'
-    - '6.7'
   ChefElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
     Default: 2
