@@ -197,7 +197,7 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: 1
-        Timeout: PT10M
+        Timeout: PT20M
     Metadata:
       AWS::CloudFormation::Init:
         configSets:

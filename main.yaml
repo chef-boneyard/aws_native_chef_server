@@ -264,9 +264,9 @@ Conditions:
 Mappings:
   AMI:
     us-east-1:
-      centos: ami-0967213b41854a0f8
+      centos: ami-08d306e6de29d5cc1
     us-west-2:
-      centos: ami-0c86c229e3ca84435
+      centos: ami-06fbb1e0ba7c99cfd
 
 Resources:
   ChefRole:
