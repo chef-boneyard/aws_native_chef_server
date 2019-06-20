@@ -1,0 +1,54 @@
+[
+  {
+    "ParameterKey": "VPC",
+    "ParameterValue": "vpc-41d45124"
+  },
+  {
+    "ParameterKey": "ServerSubnets",
+    "ParameterValue": "subnet-7424b611,subnet-7fd06308,subnet-4dc71114"
+  },
+  {
+    "ParameterKey": "InboundClientCidr",
+    "ParameterValue": "0.0.0.0/0"
+  },
+  {
+    "ParameterKey": "InboundAdminCidr",
+    "ParameterValue": "0.0.0.0/0"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "id_rsa"
+  },
+  {
+    "ParameterKey": "ContactEmail",
+    "ParameterValue": "me@mycompany.com"
+  },
+  {
+    "ParameterKey": "ContactDept",
+    "ParameterValue": "Cool Automation Team"
+  },
+  {
+    "ParameterKey": "ChefAutomateAdminPassword",
+    "ParameterValue": "SuperSecurePassword"
+  },
+  {
+    "ParameterKey": "ChefSSLCertificateARN",
+    "ParameterValue": "arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f"
+  },
+  {
+    "ParameterKey": "AutomateSSLCertificateARN",
+    "ParameterValue": "arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f"
+  },
+  {
+    "ParameterKey": "SupermarketSSLCertificateARN",
+    "ParameterValue": "arn:aws:acm:us-west-2:446539779517:certificate/60f573b3-f8ed-48d9-a6d1-e89f79da2e8f"
+  },
+  {
+    "ParameterKey": "ChefDBPassword",
+    "ParameterValue": "SuperSecurePassword"
+  },
+  {
+    "ParameterKey": "Route53HostedZone",
+    "ParameterValue": "chef.mycompany.com"
+  }
+]

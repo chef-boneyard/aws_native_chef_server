@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server PostgreSQL v4.1.0
+Description: Chef Server PostgreSQL v5.0.2
 
 Parameters:
   # Required Parameters
@@ -22,12 +22,18 @@ Parameters:
   ###############################################################################
   # Performance Settings
   DBInstanceClass:
-    Description: EC2 Instance type for RDS DBs (EBS Optimized instances recommended)
-    Default: 'db.m4.large'
+    Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
+    Default: 'db.m5.large'
     Type: String
-    AllowedValues: [db.t2.medium, db.t2.large, db.t2.xlarge, db.t2.2xlarge,
+    AllowedValues: [db.t3.small, db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
-      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge]
+      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
+      db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
+  DBStorageType:
+    Description: Select gp2 or io1 DB storage. io1 is much higher performing, must select minimum 100GB storage and an IOPS value
+    Default: 'gp2'
+    Type: String
+    AllowedValues: [gp2, io1]
   DBAllocatedStorage:
     Description: Storage size allocated for the database
     Default: '100'
@@ -42,10 +48,22 @@ Parameters:
     Description: Supply a security group for your chef frontends
     Type: AWS::EC2::SecurityGroup::Id
   ###############################################################################
+  # Backup settings
+  BackupDaystoKeep:
+    Description: Number of days of automatic backups to keep
+    Default: 7
+    Type: Number
+    MinValue: 0
+    MaxValue: 35
+  ###############################################################################
   # Input from Parent Stack
   AlertNotificationTopic:
     Description: SNS topic
     Type: String
+
+Conditions:
+  UsePiopsStorage:
+    !Equals [ !Ref DBStorageType, 'io1' ]
 
 Resources:
   DBSecurityGroup:
@@ -71,17 +89,17 @@ Resources:
     Properties:
       DBName: chef
       AllocatedStorage: !Ref DBAllocatedStorage
-      Iops: !Ref DBIops
+      Iops: !If [UsePiopsStorage, !Ref DBIops, 0]
       MasterUsername: chefadmin
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: !Ref DBInstanceClass
-      StorageType: io1
+      StorageType: !Ref DBStorageType
       MultiAZ: true
       Engine: postgres
-      EngineVersion: 9.6.8
+      EngineVersion: 9.6.12
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: true
-      BackupRetentionPeriod: '35'
+      BackupRetentionPeriod: !Ref BackupDaystoKeep
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref DBSecurityGroup

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack v5.0.2
+Description: AWS Native Chef Stack for Marketplace v5.0.2
 
 Parameters:
   # Required Parameters
@@ -13,20 +13,35 @@ Parameters:
   ServerSubnets:
     Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
     Type: List<AWS::EC2::Subnet::Id>
-  InboundAdminSecurityGroupId:
-    Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
-    Type: AWS::EC2::SecurityGroup::Id
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: AWS::EC2::KeyPair::KeyName
+  InboundClientCidr:
+    Description: Your internal network range in CIDR notation, from where client traffic will originate
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    ConstraintDescription: Must be in CIDR notation (e.g. 10.0.0.0/8 or 0.0.0.0/0)
+    Type: String
+  InboundAdminCidr:
+    Description: Your internal administrative network source range in CIDR notation
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    ConstraintDescription: Must be in CIDR notation (e.g. 10.0.0.0/8 or 0.0.0.0/0)
+    Type: String
   ContactEmail:
     Description: Contact email for Cloudwatch notifications and instance tagging
     Type: String
   ContactDept:
-    Description: Contact department for billing purposes
+    Description: Contact department for resource tagging purposes
     Type: String
+  Route53HostedZone:
+    Type: String
+    Default: ''
+    Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com) for auto-creating a DNS record. Do not append a dot at the end. (Leave blank to disable)
   ###############################################################################
   # Automate Stack Settings
+  AutomateSSLCertificateARN:
+    Description: ARN for SSL Certficate, pre-create this in AWS Certificate Manager
+    Type: String
+    AllowedPattern: "arn:aws:acm:.*"
   ChefAutomateAdminPassword:
     Description: Provide a password for the Chef Automate admin user
     NoEcho: true
@@ -35,73 +50,70 @@ Parameters:
     MaxLength: 64
     ConstraintDescription: Must be at least 8 characters
   ChefAutomateToken:
-    Description: The secret token used to communicate with the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
+    Description: The secret token used to communicate with the Chef Automate Server, for forwarding Visibility data.
     Type: String
-    Default: 93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506
     AllowedPattern: ^[a-z0-9]*$
     MinLength: 64
     MaxLength: 64
     ConstraintDescription: Must be 64 alphanumeric characters
-  AutomateSSLCertificateARN:
-    Description: SSL Certficate ARN for SSL Certficate (must begin with arn:aws:iam::)
-    Type: String
   AutomateDnsRecordName:
-    Description: The DNS A-record name to automatically create in the Route53 zone (if enabled)
+    Description: The DNS A-record name to automatically create in the Route53 zone (if enabled). Do not include the domain name.
     Type: String
     Default: 'automate'
   AutomateInstanceType:
     Description: EC2 Instance type for Automate server (M5 class recommended)
-    Default: m5.large
+    Default: t3.medium
     Type: String
-    AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
+    AllowedValues: [t3.medium, t3.large, t3.xlarge, t3.2xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
       c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
   AutomateDataVolumeSize:
-    Description: Amount of storage space to allocate on a dedicated data volume (must be between 500 and 16000)
+    Description: Amount of storage space in GB to allocate on a dedicated data volume (must be between 500 and 16000)
     Type: Number
-    Default: 1000
+    Default: 500
     MinValue: 500
     MaxValue: 16000
   ###############################################################################
   # Chef Server Stack Settings
   ChefSSLCertificateARN:
-    Description: SSL Certficate ARN for SSL Certficate (must begin with arn:aws:iam::)
+    Description: ARN for SSL Certficate, pre-create this in AWS Certificate Manager
     Type: String
+    AllowedPattern: "arn:aws:acm:.*"
   ChefServerDnsRecordName:
-    Description: The DNS A-record name to automatically create in the Route53 zone (if enabled)
+    Description: The DNS A-record name to automatically create in the Route53 zone (if enabled). Do not include the domain name.
     Type: String
     Default: 'chef'
   ChefInstanceType:
     Description: EC2 Instance type for Chef Server Frontends (C5 recommended for performance)
-    Default: c5.large
+    Default: t3.small
     Type: String
     AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
       c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
   ChefDBInstanceClass:
     Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
-    Default: 'db.m5.large'
+    Default: 'db.t3.small'
     Type: String
-    AllowedValues: [db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
+    AllowedValues: [db.t3.small, db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
       db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
       db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
       db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
   ChefDBStorageType:
     Description: Select gp2 or io1 DB storage. io1 is much higher performing, must select minimum 100GB storage and an IOPS value
-    Default: 'io1'
+    Default: 'gp2'
     Type: String
     AllowedValues: [gp2, io1]
   ChefDBAllocatedStorage:
     Description: Storage size allocated for the database (gp2 minimum 20, maximum 16000) (io1 minimum 100, maximum 32768)
-    Default: '100'
+    Default: '20'
     Type: String
   ChefDBIops:
     Description: IOPS reserved for DB storage, only applicable if ChefDBStorageType is io1 (ChefDBAllocatedStorage * 10)
     Default: '1000'
     Type: String
   ChefDBBackupDaystoKeep:
-    Description: Number of days of automatic backups to keep
-    Default: 7
+    Description: Number of days of automatic DB backups to keep
+    Default: 5
     Type: Number
     MinValue: 0
     MaxValue: 35
@@ -114,7 +126,7 @@ Parameters:
   ChefElasticSearchInstanceType:
     Description: The Instance type to use for ElasticSearch instances (i3 recommended for performance)
     Type: String
-    Default: 'i3.large.elasticsearch'
+    Default: 'm3.medium.elasticsearch'
     AllowedValues: [
       'i3.large.elasticsearch', 'i3.xlarge.elasticsearch', 'i3.2xlarge.elasticsearch', 'i3.4xlarge.elasticsearch', 'i3.8xlarge.elasticsearch', 'i3.16xlarge.elasticsearch',
       'i2.xlarge.elasticsearch', 'i2.2xlarge.elasticsearch',
@@ -125,33 +137,32 @@ Parameters:
     Type: String
     Default: '5.6'
     AllowedValues:
-    - '5.3'
-    - '5.5'
     - '5.6'
   ChefElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
-    Default: 3
+    Default: 2
     Type: Number
     MinValue: 2
     MaxValue: 3
   ###############################################################################
   # Automate Stack Settings
   SupermarketSSLCertificateARN:
-    Description: SSL Certficate ARN for SSL Certficate (must begin with arn:aws:iam::)
+    Description: ARN for SSL Certficate, pre-create this in AWS Certificate Manager
     Type: String
+    AllowedPattern: "arn:aws:acm:.*"
   SupermarketDnsRecordName:
-    Description: The DNS A-record name to automatically create in the Route53 zone (if enabled)
+    Description: The DNS A-record name to automatically create in the Route53 zone (if enabled). Do not include the domain name.
     Type: String
     Default: 'supermarket'
   SupermarketInstanceType:
     Description: EC2 Instance type for Supermarket server (M5 class recommended)
-    Default: m5.large
+    Default: t3.small
     Type: String
     AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
       m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge, m5.12xlarge, m5.24xlarge,
       c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge, c5.18xlarge]
   SupermarketDataVolumeSize:
-    Description: Amount of storage space to allocate for the Supermarket single OS volume
+    Description: Amount of storage space in GB to allocate for the Supermarket OS+data volume
     Type: Number
     Default: 20
 ###############################################################################
@@ -163,14 +174,6 @@ Parameters:
     AllowedValues:
     - 'internet-facing'
     - 'internal'
-  LoadBalancerSecurityGroupId:
-    Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
-    Type: String
-    Default: ''
-  FrontendSecurityGroupId:
-    Description: Supply a security group for your chef frontends (leave blank to have it created for you). Using the default security group is recommended.
-    Type: String
-    Default: ''
   AssociatePublicIpAddress:
     Description: Assign public IP addresses to the Chef Servers or not
     Type: String
@@ -178,29 +181,21 @@ Parameters:
     AllowedValues:
     - true
     - false
-  ExistingIamRole:
-    Description: Supply an IAM Role for the Chef Servers (leave blank to have it created for you). NOTE If you supply your own role, you must also provide an S3 Bucket which that role can access
-    Type: String
-    Default: ''
-  ExistingSecretsBucket:
-    Description: Supply an S3 Bucket name for the Chef Servers to read/write config files to (leave blank to have it created for you)
-    Type: String
-    Default: ''
   ###############################################################################
   # Other Settings
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
     Default: "5.0.2"
-  Route53HostedZone:
-    Type: String
-    Default: ''
-    Description: Supply a Route 53 Hosted Zone name (eg. mydomain.com) for auto-creating a DNS record. Do not append a dot at the end. (Leave blank to disable)
   LogsRetentionInDays:
     Description: Specifies the number of days you want to retain cloudwatch log events.
     Type: Number
     Default: 90
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+
+Conditions:
+  2ZoneES:
+    !Equals [!Ref ChefElasticSearchShardCount, 2]
 
 Metadata:
   cfn-lint:
@@ -215,7 +210,8 @@ Metadata:
           - VPC
           - ServerSubnets
           - KeyName
-          - InboundAdminSecurityGroupId
+          - InboundClientCidr
+          - InboundAdminCidr
           - ContactEmail
           - ContactDept
           - Route53HostedZone
@@ -256,16 +252,6 @@ Metadata:
           - LoadBalancerScheme
           - AssociatePublicIpAddress
 
-Conditions:
-  CreateChefIamRole:
-    !Equals [ !Ref ExistingIamRole, '' ]
-  CreateChefSecretsBucket:
-    !Equals [ !Ref ExistingSecretsBucket, '' ]
-  CreateLoadBalancerSecurityGroup:
-    !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
-  CreateFrontendSecurityGroup:
-    !Equals [ !Ref FrontendSecurityGroupId, '' ]
-
 # STOP:  Do not replace the AMI list unless you 100% know what you're doing
 #        and are fully prepared to lose all support. This template now depends
 #        on AMIs that are pre-baked with all needed packages and scripts.
@@ -278,7 +264,6 @@ Mappings:
 
 Resources:
   ChefRole:
-    Condition: CreateChefIamRole
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -293,7 +278,6 @@ Resources:
       Path: /
 
   RolePolicies:
-    Condition: CreateChefIamRole
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: !Sub ${AWS::StackName}-ChefStack-Policy
@@ -304,8 +288,8 @@ Resources:
         - Action: s3:*
           Effect: Allow
           Resource:
-            - !Join ['', [ 'arn:aws:s3:::', !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket] ]]
-            - !Join ['', [ 'arn:aws:s3:::', !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket], '/*' ]]
+            - !Join ['', [ 'arn:aws:s3:::', !Ref ChefBucket]]
+            - !Join ['', [ 'arn:aws:s3:::', !Ref ChefBucket, '/*' ]]
         # Allow ability to list all buckets
         - Action: s3:List*
           Effect: Allow
@@ -339,7 +323,6 @@ Resources:
       - !Ref ChefRole
 
   ChefBucket:
-    Condition: CreateChefSecretsBucket
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
@@ -347,9 +330,26 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
+  InboundAdminSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Trusted IP addresses, ranges or security groups
+      SecurityGroupIngress:
+      - CidrIp: !Ref InboundAdminCidr
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+      - CidrIp: !Ref InboundAdminCidr
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-Trusted-SG
+      VpcId: !Ref VPC
+
   FrontendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
-    Condition: CreateFrontendSecurityGroup
     Properties:
       GroupDescription: Setup Ingress/Egress for Automate Server
       SecurityGroupEgress:
@@ -360,11 +360,11 @@ Resources:
       SecurityGroupIngress:
       - FromPort: 80
         IpProtocol: tcp
-        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
         ToPort: 80
       - FromPort: 443
         IpProtocol: tcp
-        SourceSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+        SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
         ToPort: 443
       Tags:
       - Key: Name
@@ -373,7 +373,6 @@ Resources:
 
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
-    Condition: CreateLoadBalancerSecurityGroup
     Properties:
       GroupDescription: Setup Ingress/Egress for Automate Load Balancer
       SecurityGroupEgress:
@@ -382,11 +381,11 @@ Resources:
         IpProtocol: tcp
         ToPort: 65535
       SecurityGroupIngress:
-      - CidrIp: 0.0.0.0/0
+      - CidrIp: !Ref InboundClientCidr
         FromPort: 80
         IpProtocol: tcp
         ToPort: 80
-      - CidrIp: 0.0.0.0/0
+      - CidrIp: !Ref InboundClientCidr
         FromPort: 443
         IpProtocol: tcp
         ToPort: 443
@@ -409,17 +408,14 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: !Ref LogsRetentionInDays
-
   ChefAppLogs:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: !Ref LogsRetentionInDays
-
   SupermarketAppLogs:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: !Ref LogsRetentionInDays
-
   AutomateAppLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -447,9 +443,9 @@ Resources:
         DataVolumeSize: !Ref AutomateDataVolumeSize
         AutomateDataCollectorToken: !Ref ChefAutomateToken
         LoadBalancerScheme: !Ref LoadBalancerScheme
-        LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
-        AutomateIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
+        LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        FrontendSecurityGroupId: !Ref FrontendSecurityGroup
+        AutomateIamRole: !Ref ChefRole
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref AutomateDnsRecordName
         SystemLogsGroup: !Ref SystemLogs
@@ -482,12 +478,13 @@ Resources:
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount
+        ElasticSearchReplicaCount: !If [2ZoneES, 1, 2]
         LoadBalancerScheme: !Ref LoadBalancerScheme
-        LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
+        LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        FrontendSecurityGroupId: !Ref FrontendSecurityGroup
         ChefServerAssociatePublicIpAddress: !Ref AssociatePublicIpAddress
-        ChefServerIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
-        ChefSecretsBucket: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket]
+        ChefServerIamRole: !Ref ChefRole
+        ChefSecretsBucket: !Ref ChefBucket
         ChefAutomateServerUrl: !Sub "https://${AutomateStack.Outputs.DNSName}"
         ChefAutomateToken: !Ref ChefAutomateToken
         SupermarketUrl: !Sub "https://${SupermarketDnsRecordName}.${Route53HostedZone}"
@@ -518,10 +515,10 @@ Resources:
         InstanceType: !Ref SupermarketInstanceType
         DataVolumeSize: !Ref SupermarketDataVolumeSize
         LoadBalancerScheme: !Ref LoadBalancerScheme
-        LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
-        FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
-        SupermarketIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
-        ChefSecretsBucket: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket]
+        LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        FrontendSecurityGroupId: !Ref FrontendSecurityGroup
+        SupermarketIamRole: !Ref ChefRole
+        ChefSecretsBucket: !Ref ChefBucket
         ChefStackName: !GetAtt ChefServerStack.Outputs.StackName
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref SupermarketDnsRecordName
