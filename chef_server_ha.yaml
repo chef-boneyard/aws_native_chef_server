@@ -512,7 +512,7 @@ Resources:
                 unless '${SupermarketUrl}'.empty?
                   oc_id['applications'] ||= {}
                   oc_id['applications']['supermarket'] = {
-                    'redirect_uri' => 'https://${SupermarketUrl}/auth/chef_oauth2/callback'
+                    'redirect_uri' => '${SupermarketUrl}/auth/chef_oauth2/callback'
                   }
                 end
                 default_orgname '${ChefDefaultOrgName}'.empty? ? null : '${ChefDefaultOrgName}'
