@@ -48,6 +48,9 @@ Parameters:
     Default: 1000
   ###############################################################################
   # Security Settings
+  AutomateAdminPassword:
+    Description: Provide a password for the Chef Automate admin user
+    Type: String
   AutomateDataCollectorToken:
     Description: The token used for ingesting Data Collector (Chef) events
     Type: String
@@ -307,9 +310,11 @@ Resources:
                 grep hab /proc/mounts || mount /dev/data-vg/data-lv /hab
                 grep 'data--vg-data--lv' /etc/fstab || echo '/dev/mapper/data--vg-data--lv /hab xfs defaults 0 0' >> /etc/fstab
             03_configure_automate:
-              command: |
+              command: !Sub |
                 cd /root
                 /var/cache/marketplace/chef-automate deploy /etc/automate-config.toml --accept-terms-and-mlsa --skip-preflight --airgap-bundle /var/cache/marketplace/chef-automate.bundle
+                sleep 10
+                /bin/chef-automate iam admin-access restore '${AutomateAdminPassword}'
             05_configure_cloudwatch_monitoring:
               command: |
                 crontab -l | { cat; echo "*/5 * * * * /opt/cloudwatch_monitoring/aws-scripts-mon/mon-put-instance-data.pl --mem-util --disk-space-util --disk-path=/ --from-cron"; } | crontab -

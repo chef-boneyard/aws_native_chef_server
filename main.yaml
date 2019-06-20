@@ -27,6 +27,21 @@ Parameters:
     Type: String
   ###############################################################################
   # Automate Stack Settings
+  ChefAutomateAdminPassword:
+    Description: Provide a password for the Chef Automate admin user
+    NoEcho: true
+    Type: String
+    MinLength: 8
+    MaxLength: 64
+    ConstraintDescription: Must be at least 8 characters
+  ChefAutomateToken:
+    Description: The secret token used to communicate with the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
+    Type: String
+    Default: 93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506
+    AllowedPattern: ^[a-z0-9]*$
+    MinLength: 64
+    MaxLength: 64
+    ConstraintDescription: Must be 64 alphanumeric characters
   AutomateSSLCertificateARN:
     Description: SSL Certficate ARN for SSL Certficate (must begin with arn:aws:iam::)
     Type: String
@@ -173,14 +188,6 @@ Parameters:
     Default: ''
   ###############################################################################
   # Other Settings
-  ChefAutomateToken:
-    Description: The secret token used to communicate with the Chef Automate Server, for forwarding Visibility data.  Leave blank to disable.
-    Type: String
-    Default: 93a49a4f2482c64126f7b6015e6b0f30284287ee4054ff8807fb63d9cbd1c506
-    AllowedPattern: ^[a-z0-9]*$
-    MinLength: 64
-    MaxLength: 64
-    ConstraintDescription: Must be 64 alphanumeric characters
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
@@ -212,6 +219,7 @@ Metadata:
           - ContactEmail
           - ContactDept
           - Route53HostedZone
+          - ChefAutomateAdminPassword
           - AutomateSSLCertificateARN
           - ChefSSLCertificateARN
           - SupermarketSSLCertificateARN
@@ -428,6 +436,7 @@ Resources:
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
         AutomateSubnet: !Select [ "0", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref AutomateSSLCertificateARN
+        AutomateAdminPassword: !Ref ChefAutomateAdminPassword
         InboundAdminSecurityGroupId: !Ref InboundAdminSecurityGroupId
         ImageId: !FindInMap [AMI, !Ref "AWS::Region", centos]
         KeyName: !Ref KeyName
@@ -535,6 +544,3 @@ Outputs:
     Value: !Sub "https://${SupermarketStack.Outputs.DNSName}"
     Export:
       Name: !Sub "${AWS::StackName}-SupermarketURL"
-  AutomateAdminPassword:
-    Description: The password for the Chef Automate admin user
-    Value: !Sub "To retrieve, run: ssh centos@${AutomateStack.Outputs.ServerIP} sudo cat /root/automate-credentials.toml"
