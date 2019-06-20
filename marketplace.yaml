@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack for Marketplace v5.0.1
+Description: AWS Native Chef Stack for Marketplace v5.0.2
 
 Parameters:
   # Required Parameters
@@ -101,7 +101,7 @@ Parameters:
     Default: '20'
     Type: String
   ChefDBIops:
-    Description: IOPS allocated to the storage (storage size * 10)
+    Description: IOPS reserved for DB storage, only applicable if ChefDBStorageType is io1 (ChefDBAllocatedStorage * 10)
     Default: '1000'
     Type: String
   ChefDBBackupDaystoKeep:
@@ -179,7 +179,7 @@ Parameters:
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
-    Default: "5.0.1"
+    Default: "5.0.2"
   LogsRetentionInDays:
     Description: Specifies the number of days you want to retain cloudwatch log events.
     Type: Number
@@ -478,6 +478,7 @@ Resources:
         ChefSecretsBucket: !Ref ChefBucket
         ChefAutomateServerUrl: !Sub "https://${AutomateStack.Outputs.DNSName}"
         ChefAutomateToken: !Ref ChefAutomateToken
+        SupermarketUrl: !Sub "https://${SupermarketDnsRecordName}.${Route53HostedZone}"
         Route53HostedZone: !Ref Route53HostedZone
         Route53RecordName: !Ref ChefServerDnsRecordName
         SystemLogsGroup: !Ref SystemLogs

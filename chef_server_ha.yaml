@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server (auto-scaling HA) v5.0.1
+Description: AWS Native Chef Server (auto-scaling HA) v5.0.2
 
 Parameters:
   # Required Parameters
@@ -165,6 +165,10 @@ Parameters:
     Default: ''
     Type: String
     Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb (optional)
+  SupermarketUrl:
+    Description: The URL of the Private Supermarket Server, for oc-id authentication.  Leave blank to disable.
+    Type: String
+    Default: ''
   Route53HostedZone:
     Type: String
     Default: ''
@@ -181,7 +185,7 @@ Parameters:
     Type: String
   TemplateVersion:
     Type: String
-    Default: "5.0.1"
+    Default: "5.0.2"
 
 Metadata:
   cfn-lint:
@@ -505,15 +509,18 @@ Resources:
                 rabbitmq['queue_length_monitor_enabled'] = false
                 opscode_expander['enable'] = false
                 dark_launch['actions'] = false
-                oc_id['applications'] ||= {}
-                oc_id['applications']['supermarket'] = {
-                  'redirect_uri' => 'https://supermarket.${Route53HostedZone}/auth/chef_oauth2/callback'
-                }
+                unless '${SupermarketUrl}'.empty?
+                  oc_id['applications'] ||= {}
+                  oc_id['applications']['supermarket'] = {
+                    'redirect_uri' => 'https://${SupermarketUrl}/auth/chef_oauth2/callback'
+                  }
+                end
                 default_orgname '${ChefDefaultOrgName}'.empty? ? null : '${ChefDefaultOrgName}'
                 # special handling for Chef Automate URL and Token which might be empty strings
                 unless '${ChefAutomateServerUrl}'.empty? || '${ChefAutomateToken}'.empty?
-                  data_collector['root_url'] = '${ChefAutomateServerUrl}'
+                  data_collector['root_url'] = '${ChefAutomateServerUrl}/data-collector/v0/'
                   data_collector['token'] = '${ChefAutomateToken}'
+                  profiles['root_url'] = '${ChefAutomateServerUrl}'
                 end
               - { DNSNAME: !If [CreateRoute53Record, !Sub "${Route53RecordName}.${Route53HostedZone}", !GetAtt ChefALB.DNSName] }
           commands:
