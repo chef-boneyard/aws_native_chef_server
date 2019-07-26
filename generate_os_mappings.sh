@@ -10,7 +10,7 @@ for region in $regions; do
   centos_ami=$(aws --region $region ec2 describe-images \
   --owners $IMAGE_OWNERID \
   --filters "Name=name,Values=${CENTOS_RELEASE}" \
-  --query "Images[0].ImageId" \
+  --query "sort_by(Images, &CreationDate)[*].ImageId | [-1]" \
   --output "text")
 
   printf "    $region:\n      centos: $centos_ami\n"

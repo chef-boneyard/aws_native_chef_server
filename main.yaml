@@ -305,7 +305,7 @@ Mappings:
     us-west-1:
       centos: ami-091c26fc49f685d07
     us-west-2:
-      centos: ami-00eb39d28b3b161e5
+      centos: ami-0f4e70c7b0eb9ebdc
 
 Resources:
   ChefRole:
