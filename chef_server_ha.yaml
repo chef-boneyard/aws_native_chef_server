@@ -365,8 +365,8 @@ Resources:
   ChefTargetGroup:
       Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
       Properties:
-        HealthCheckIntervalSeconds: 60
-        UnhealthyThresholdCount: 10
+        HealthCheckIntervalSeconds: 30
+        UnhealthyThresholdCount: 4
         HealthCheckPath: /_status
         VpcId: !Ref VPC
         Port: 443
@@ -385,8 +385,8 @@ Resources:
   ChefBootstrapTargetGroup:
       Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
       Properties:
-        HealthCheckIntervalSeconds: 60
-        UnhealthyThresholdCount: 10
+        HealthCheckIntervalSeconds: 30
+        UnhealthyThresholdCount: 4
         HealthCheckPath: /_status
         VpcId: !Ref VPC
         Port: 443
