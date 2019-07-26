@@ -1,16 +1,17 @@
 language: python
 python:
-- '3.6'
+- '3.7'
 install:
 - pip install awscli cfn-lint
 script:
 - cfn-lint -f json *.yaml
-- aws cloudformation validate-template --template-body file://main.yaml
+- aws cloudformation validate-template --template-body file://automate.yaml
 - aws cloudformation validate-template --template-body file://chef_elasticsearch.yaml
 - aws cloudformation validate-template --template-body file://chef_rds.yaml
-- aws cloudformation validate-template --template-body file://automate.yaml
 - aws cloudformation validate-template --template-body file://chef_server_ha.yaml
 - aws cloudformation validate-template --template-body file://chef_server_ops_dashboard.yaml
+- aws cloudformation validate-template --template-body file://main.yaml
+- aws cloudformation validate-template --template-body file://marketplace.yaml
 - aws cloudformation validate-template --template-body file://supermarket.yaml
 env:
   global:
@@ -20,8 +21,13 @@ env:
   # AWS_SECRET_ACCESS_KEY
   - secure: UgSuLr08ONqGJ5W5BLfVGC47P8AHh8/4u89GQEaR36Z1UdEo2e1buFOdMjZuBccsidB721LRCgn4yn+QafswTD7PvF7K/KoybUmseu3yR8LTf1HXInvYhqDnzI463i79B9A99GHFfjl/gZe4rNWYjCaJwIrAPkpsc11YOZU59BErL8RVwP8mCLXVlH4bEMUQFXHIddmDBBVV4M7+Dc1UBWc+ntHJPPoMpuzYJl7Lq32c5JPKs9Q3eEJuSnS3mAKCISobAG84Ck2VvcCxMfYJ/OARMl5eNmBZkLTAV3alSlrhhbwRzpAKc4YnmaWz6WJ49tNhZSwABPl+Om6LYiMVJg2a35Ocg7ru/5nz5VhaNUPCQeSOMmV2cM49MIdL4ZH/1hoB4StST4/vjcWQ5+HSIQEuEpEJx43J+oklIu8mgac9TpblgeoI50kryadFwgTqiAqMepsEvG9JKTIgcTOhb1ijAl+IVoKWLns04t2+oHuTFbqUrC6IlEi+5nATXUng65e1yiySZVgWuLwQyLa1Sajmgi9TiAKiUlTxt2eIzT7ok5SRSJxFZX3yGKXSw1SYi0knazQ2BUvcWsDbwLrp/SkQkzDh9ALjdT2027vtdIJviR+nyfzpKgx2PAmY5/JhzGK5pEZtE25XmOs1QLLC/XVKeDOp9t7Atgpl0QVW5x8=
 deploy:
-  provider: script
+- provider: script
   script: aws s3 sync . s3://aws-native-chef-server/ --exclude "*" --include "*.yaml" --include "files/*" --acl public-read
   skip_cleanup: true
   on:
     branch: master
+- provider: script
+  script: aws s3 sync . s3://aws-native-chef-server/${TRAVIS_TAG#v}/ --exclude "*" --include "*.yaml" --include "files/*" --acl public-read
+  skip_cleanup: true
+  on:
+    tags: true
