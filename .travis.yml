@@ -1,18 +1,16 @@
 language: python
+cache: pip
 python:
 - '3.7'
 install:
 - pip install awscli cfn-lint
 script:
-- cfn-lint -f json *.yaml
-- aws cloudformation validate-template --template-body file://automate.yaml
-- aws cloudformation validate-template --template-body file://chef_elasticsearch.yaml
-- aws cloudformation validate-template --template-body file://chef_rds.yaml
-- aws cloudformation validate-template --template-body file://chef_server_ha.yaml
-- aws cloudformation validate-template --template-body file://chef_server_ops_dashboard.yaml
-- aws cloudformation validate-template --template-body file://main.yaml
-- aws cloudformation validate-template --template-body file://marketplace.yaml
-- aws cloudformation validate-template --template-body file://supermarket.yaml
+- cfn-lint -I -f parseable *.yaml
+- |
+  for template in $(ls *.yaml); do
+    echo "Validating template: ${template}"
+    aws cloudformation validate-template --template-body file://${template} > /dev/null
+  done
 env:
   global:
   - AWS_DEFAULT_REGION=us-east-1
