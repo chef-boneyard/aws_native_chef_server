@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack v5.0.2
+Description: AWS Native Chef Stack v5.0.3
 
 Parameters:
   # Required Parameters
@@ -43,8 +43,9 @@ Parameters:
     MaxLength: 64
     ConstraintDescription: Must be 64 alphanumeric characters
   AutomateSSLCertificateARN:
-    Description: SSL Certficate ARN for SSL Certficate (must begin with arn:aws:iam::)
+    Description: ARN for SSL Certficate, pre-create this in AWS Certificate Manager
     Type: String
+    AllowedPattern: "arn:aws:acm:.*"
   AutomateDnsRecordName:
     Description: The DNS A-record name to automatically create in the Route53 zone (if enabled)
     Type: String
@@ -65,8 +66,9 @@ Parameters:
   ###############################################################################
   # Chef Server Stack Settings
   ChefSSLCertificateARN:
-    Description: SSL Certficate ARN for SSL Certficate (must begin with arn:aws:iam::)
+    Description: ARN for SSL Certficate, pre-create this in AWS Certificate Manager
     Type: String
+    AllowedPattern: "arn:aws:acm:.*"
   ChefServerDnsRecordName:
     Description: The DNS A-record name to automatically create in the Route53 zone (if enabled)
     Type: String
@@ -137,8 +139,9 @@ Parameters:
   ###############################################################################
   # Automate Stack Settings
   SupermarketSSLCertificateARN:
-    Description: SSL Certficate ARN for SSL Certficate (must begin with arn:aws:iam::)
+    Description: ARN for SSL Certficate, pre-create this in AWS Certificate Manager
     Type: String
+    AllowedPattern: "arn:aws:acm:.*"
   SupermarketDnsRecordName:
     Description: The DNS A-record name to automatically create in the Route53 zone (if enabled)
     Type: String
@@ -191,7 +194,7 @@ Parameters:
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
-    Default: "5.0.2"
+    Default: "5.0.3"
   Route53HostedZone:
     Type: String
     Default: ''
@@ -271,10 +274,38 @@ Conditions:
 #        on AMIs that are pre-baked with all needed packages and scripts.
 Mappings:
   AMI:
+    eu-north-1:
+      centos: ami-0e3540d8dcf6baa57
+    ap-south-1:
+      centos: ami-0287df9f8d0796a63
+    eu-west-3:
+      centos: ami-00176aca62de06e94
+    eu-west-2:
+      centos: ami-081983c0672f08c6f
+    eu-west-1:
+      centos: ami-07e3840c54b742e84
+    ap-northeast-2:
+      centos: ami-0e6b816a2aea67be6
+    ap-northeast-1:
+      centos: ami-0c1c16adfd4303f6d
+    sa-east-1:
+      centos: ami-046f3c3d9b8e2b107
+    ca-central-1:
+      centos: ami-02b10d41e1f2d9bc2
+    ap-southeast-1:
+      centos: ami-0629f6fb089bf58f6
+    ap-southeast-2:
+      centos: ami-0ced805f1b5b0d77f
+    eu-central-1:
+      centos: ami-0a7aed8efbe64e587
     us-east-1:
-      centos: ami-08d306e6de29d5cc1
+      centos: ami-081944b648867fd42
+    us-east-2:
+      centos: ami-032ad04e6f3c8bf3a
+    us-west-1:
+      centos: ami-091c26fc49f685d07
     us-west-2:
-      centos: ami-06fbb1e0ba7c99cfd
+      centos: ami-00eb39d28b3b161e5
 
 Resources:
   ChefRole:
