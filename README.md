@@ -24,8 +24,6 @@ A complete Chef Stack including:
 ## Requirements
 * A working knowledge and comfort level with CloudFormation so that you can read and understand this template for your self
 * Permissions to create all of the types of resources specified in this template (IAM roles, Database subnets, etc)
-* A valid SSL certificate ARN (from the AWS Certificate Manager service)
-* A Route53 hosted zone (optional but strongly recommended)
 
 ## Prerequisites
 
