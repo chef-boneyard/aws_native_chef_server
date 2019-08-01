@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native OpsDashboard for Chef Server v5.0.2
+Description: AWS Native OpsDashboard for Chef Server v5.0.3
 
 Parameters:
   # Required Parameters

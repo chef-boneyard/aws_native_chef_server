@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server (auto-scaling HA) v5.0.2
+Description: AWS Native Chef Server (auto-scaling HA) v5.0.3
 
 Parameters:
   # Required Parameters
@@ -185,7 +185,7 @@ Parameters:
     Type: String
   TemplateVersion:
     Type: String
-    Default: "5.0.2"
+    Default: "5.0.3"
 
 Metadata:
   cfn-lint:
@@ -246,6 +246,8 @@ Resources:
       - !Ref ChefTargetGroup
       MaxSize: !Sub '${MaxFrontendInstances}'
       MinSize: !Sub '${MinFrontendInstances}'
+      HealthCheckGracePeriod: 900
+      HealthCheckType: ELB
       NotificationConfigurations:
       - TopicARN: !Ref AlertNotificationTopic
         NotificationTypes:
@@ -365,8 +367,9 @@ Resources:
   ChefTargetGroup:
       Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
       Properties:
-        HealthCheckIntervalSeconds: 60
-        UnhealthyThresholdCount: 10
+        HealthCheckIntervalSeconds: 30
+        UnhealthyThresholdCount: 2
+        HealthyThresholdCount: 5
         HealthCheckPath: /_status
         VpcId: !Ref VPC
         Port: 443
@@ -385,8 +388,9 @@ Resources:
   ChefBootstrapTargetGroup:
       Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
       Properties:
-        HealthCheckIntervalSeconds: 60
-        UnhealthyThresholdCount: 10
+        HealthCheckIntervalSeconds: 30
+        UnhealthyThresholdCount: 2
+        HealthyThresholdCount: 5
         HealthCheckPath: /_status
         VpcId: !Ref VPC
         Port: 443
@@ -840,13 +844,51 @@ Resources:
       MetricName: HTTPCode_ELB_5XX_Count
       Namespace: AWS/ApplicationELB
       ComparisonOperator: GreaterThanOrEqualToThreshold
-      EvaluationPeriods: 5
+      EvaluationPeriods: 2
       Period: 60
       Statistic: Sum
       Threshold: 10
       Dimensions:
         - Name: LoadBalancer
           Value: !GetAtt ChefALB.LoadBalancerFullName
+
+  BootstrapTGUnhealthyHosts:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub Chef-Bootstrap-TG-Unhealthy-Hosts-${AWS::StackName}
+      AlarmDescription: Alarms when UnHealthyHostCount is greater than threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: UnHealthyHostCount
+      Namespace: AWS/ApplicationELB
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ChefALB.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt ChefBootstrapTargetGroup.TargetGroupFullName
+
+  FETGUnhealthyHosts:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub Chef-FE-TG-Unhealthy-Hosts-${AWS::StackName}
+      AlarmDescription: Alarms when UnHealthyHostCount is greater than threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: UnHealthyHostCount
+      Namespace: AWS/ApplicationELB
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ChefALB.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt ChefTargetGroup.TargetGroupFullName
 
   CPUAlarmHigh:
     Type: AWS::CloudWatch::Alarm

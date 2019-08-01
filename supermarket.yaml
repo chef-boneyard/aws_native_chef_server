@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Supermarket (auto-recovering standalone) v5.0.2
+Description: AWS Native Supermarket (auto-recovering standalone) v5.0.3
 
 Parameters:
   # Required Parameters
@@ -146,8 +146,9 @@ Resources:
   ChefTargetGroup:
       Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
       Properties:
-        HealthCheckIntervalSeconds: 60
-        UnhealthyThresholdCount: 10
+        HealthCheckIntervalSeconds: 30
+        UnhealthyThresholdCount: 2
+        HealthyThresholdCount: 5
         HealthCheckPath: /
         VpcId: !Ref VPC
         Port: 443
@@ -449,13 +450,32 @@ Resources:
       MetricName: HTTPCode_ELB_5XX_Count
       Namespace: AWS/ApplicationELB
       ComparisonOperator: GreaterThanOrEqualToThreshold
-      EvaluationPeriods: 5
+      EvaluationPeriods: 2
       Period: 60
       Statistic: Sum
       Threshold: 10
       Dimensions:
         - Name: LoadBalancer
           Value: !GetAtt ChefALB.LoadBalancerFullName
+
+  TargetGroupUnHealthyHostsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub Supermarket-TG-Unhealthy-Hosts-${AWS::StackName}
+      AlarmDescription: Alarms when UnHealthyHostCount is greater than threshold.
+      AlarmActions: [!Ref AlertNotificationTopic]
+      MetricName: UnHealthyHostCount
+      Namespace: AWS/ApplicationELB
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 2
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ChefALB.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt ChefTargetGroup.TargetGroupFullName
 
 Outputs:
   DNSName:
