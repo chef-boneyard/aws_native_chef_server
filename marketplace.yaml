@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack for Marketplace v5.0.3
+Description: AWS Native Chef Stack for Marketplace v5.0.4
 
 Parameters:
   # Required Parameters
@@ -186,7 +186,7 @@ Parameters:
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
-    Default: "5.0.3"
+    Default: "5.0.4"
   LogsRetentionInDays:
     Description: Specifies the number of days you want to retain cloudwatch log events.
     Type: Number

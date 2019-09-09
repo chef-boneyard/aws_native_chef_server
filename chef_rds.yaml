@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server PostgreSQL v5.0.3
+Description: Chef Server PostgreSQL v5.0.4
 
 Parameters:
   # Required Parameters
@@ -25,10 +25,32 @@ Parameters:
     Description: EC2 Instance type for RDS DBs (M5 class recommended for performance)
     Default: 'db.m5.large'
     Type: String
-    AllowedValues: [db.t3.small, db.t3.medium, db.t3.large, db.t3.xlarge, db.t3.2xlarge,
-      db.m4.large, db.m4.xlarge, db.m4.2xlarge, db.m4.4xlarge, db.m4.10xlarge, db.m4.16xlarge,
-      db.r4.large, db.r4.xlarge, db.r4.2xlarge, db.r4.4xlarge, db.r4.8xlarge, db.r4.16xlarge,
-      db.m5.large, db.m5.xlarge, db.m5.2xlarge, db.m5.4xlarge, db.m5.12xlarge, db.m5.24xlarge]
+    AllowedValues:
+      [
+        db.t3.small,
+        db.t3.medium,
+        db.t3.large,
+        db.t3.xlarge,
+        db.t3.2xlarge,
+        db.m4.large,
+        db.m4.xlarge,
+        db.m4.2xlarge,
+        db.m4.4xlarge,
+        db.m4.10xlarge,
+        db.m4.16xlarge,
+        db.r4.large,
+        db.r4.xlarge,
+        db.r4.2xlarge,
+        db.r4.4xlarge,
+        db.r4.8xlarge,
+        db.r4.16xlarge,
+        db.m5.large,
+        db.m5.xlarge,
+        db.m5.2xlarge,
+        db.m5.4xlarge,
+        db.m5.12xlarge,
+        db.m5.24xlarge,
+      ]
   DBStorageType:
     Description: Select gp2 or io1 DB storage. io1 is much higher performing, must select minimum 100GB storage and an IOPS value
     Default: 'gp2'
@@ -62,14 +84,13 @@ Parameters:
     Type: String
 
 Conditions:
-  UsePiopsStorage:
-    !Equals [ !Ref DBStorageType, 'io1' ]
+  UsePiopsStorage: !Equals [!Ref DBStorageType, 'io1']
 
 Resources:
   DBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "RDS Frontend Access"
+      GroupDescription: 'RDS Frontend Access'
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -85,7 +106,7 @@ Resources:
 
   DBPostgres:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: "Snapshot"
+    DeletionPolicy: 'Snapshot'
     Properties:
       DBName: chef
       AllocatedStorage: !Ref DBAllocatedStorage
@@ -116,26 +137,26 @@ Resources:
     Type: AWS::RDS::EventSubscription
     Properties:
       EventCategories:
-        - "availability"
+        - 'availability'
         # - "backup"
-        - "configuration change"
-        - "creation"
-        - "deletion"
-        - "failover"
-        - "failure"
-        - "low storage"
-        - "maintenance"
-        - "notification"
+        - 'configuration change'
+        - 'creation'
+        - 'deletion'
+        - 'failover'
+        - 'failure'
+        - 'low storage'
+        - 'maintenance'
+        - 'notification'
         # - "read replica"
-        - "recovery"
-        - "restoration"
+        - 'recovery'
+        - 'restoration'
       SnsTopicArn: !Ref AlertNotificationTopic
       SourceIds:
         - !Ref DBPostgres
       SourceType: db-instance
 
-# Monitoring
-#########################################################################################
+  # Monitoring
+  #########################################################################################
   RDSWriteLatency:
     Type: AWS::CloudWatch::Alarm
     Properties:

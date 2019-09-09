@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server Elasticsearch 5.0.3
+Description: Chef Server Elasticsearch 5.0.4
 
 Parameters:
   # Required Parameters
@@ -21,20 +21,35 @@ Parameters:
     Description: The Instance type to use for ElasticSearch instances (Note, must have ephemeral storage, the instance type affects the total amount of elasticsearch storage. i3 strongly recommended)
     Type: String
     Default: 'i3.large.elasticsearch'
-    AllowedValues: [
-      'i3.large.elasticsearch', 'i3.xlarge.elasticsearch', 'i3.2xlarge.elasticsearch', 'i3.4xlarge.elasticsearch', 'i3.8xlarge.elasticsearch', 'i3.16xlarge.elasticsearch',
-      'i2.xlarge.elasticsearch', 'i2.2xlarge.elasticsearch',
-      'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
-      'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
+    AllowedValues:
+      [
+        'i3.large.elasticsearch',
+        'i3.xlarge.elasticsearch',
+        'i3.2xlarge.elasticsearch',
+        'i3.4xlarge.elasticsearch',
+        'i3.8xlarge.elasticsearch',
+        'i3.16xlarge.elasticsearch',
+        'i2.xlarge.elasticsearch',
+        'i2.2xlarge.elasticsearch',
+        'm3.medium.elasticsearch',
+        'm3.large.elasticsearch',
+        'm3.xlarge.elasticsearch',
+        'm3.medium.elasticsearch',
+        'r3.large.elasticsearch',
+        'r3.xlarge.elasticsearch',
+        'r3.2xlarge.elasticsearch',
+        'r3.4xlarge.elasticsearch',
+        'r3.8xlarge.elasticsearch',
+      ]
   ElasticSearchVersion:
     Description: Version of ElasticSearch to use
     Type: String
     Default: '5.6'
     AllowedValues:
-    - '2.3'
-    - '5.3'
-    - '5.5'
-    - '5.6'
+      - '2.3'
+      - '5.3'
+      - '5.5'
+      - '5.6'
   ElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
     Default: 3
@@ -54,16 +69,15 @@ Parameters:
     Type: String
 
 Conditions:
-  2ZoneES:
-    !Equals [!Ref ElasticSearchShardCount, 2]
+  2ZoneES: !Equals [!Ref ElasticSearchShardCount, 2]
 
 Resources:
-# ElasticSearch
-#########################################################################################
+  # ElasticSearch
+  #########################################################################################
   ESSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Elasticsearch Frontend Access"
+      GroupDescription: 'Elasticsearch Frontend Access'
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -77,40 +91,49 @@ Resources:
       ElasticsearchVersion: !Ref ElasticSearchVersion
       ElasticsearchClusterConfig:
         InstanceCount: !Sub ${ElasticSearchShardCount}
-        ZoneAwarenessEnabled: !If [2ZoneES, true, false]
+        ZoneAwarenessEnabled: true
+        ZoneAwarenessConfig:
+          AvailabilityZoneCount: !If [2ZoneES, 2, 3]
         InstanceType: !Ref ElasticSearchInstanceType
         DedicatedMasterEnabled: false
       SnapshotOptions:
         AutomatedSnapshotStartHour: 0
       AccessPolicies:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
-          - Effect: "Allow"
+          - Effect: 'Allow'
             Principal:
               AWS: !Ref ChefRole
-            Action: "es:*"
-            Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:*"
+            Action: 'es:*'
+            Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:*'
       VPCOptions:
-        SubnetIds: !If [
-          2ZoneES,
-          [ !Select [ 0, !Ref ChefServerSubnets ], !Select [ 1, !Ref ChefServerSubnets ]],
-          [ !Select [ 0, !Ref ChefServerSubnets ] ]
-        ]
+        SubnetIds:
+          !If [
+            2ZoneES,
+            [
+              !Select [0, !Ref ChefServerSubnets],
+              !Select [1, !Ref ChefServerSubnets],
+            ],
+            [
+              !Select [0, !Ref ChefServerSubnets],
+              !Select [1, !Ref ChefServerSubnets],
+              !Select [2, !Ref ChefServerSubnets],
+            ],
+          ]
         SecurityGroupIds:
           - !Ref ESSecurityGroup
       AdvancedOptions:
-        rest.action.multi.allow_explicit_index: "true"
+        rest.action.multi.allow_explicit_index: 'true'
       Tags:
-      - Key: Name
-        Value: !Sub ${AWS::StackName}-ES
-      - Key: X-Dept
-        Value: !Ref ContactDept
-      - Key: X-Contact
-        Value: !Ref ContactEmail
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ES
+        - Key: X-Dept
+          Value: !Ref ContactDept
+        - Key: X-Contact
+          Value: !Ref ContactEmail
 
-
-# Monitoring
-#########################################################################################
+  # Monitoring
+  #########################################################################################
   ESClusterRed:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -129,7 +152,6 @@ Resources:
           Value: !Ref ElasticsearchDomain
         - Name: ClientId
           Value: !Ref AWS::AccountId
-
 
   ESClusterYellow:
     Type: AWS::CloudWatch::Alarm
