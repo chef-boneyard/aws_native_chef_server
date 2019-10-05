@@ -13,6 +13,12 @@ Parameters:
   ServerSubnets:
     Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
     Type: List<AWS::EC2::Subnet::Id>
+  LoadBalancerSubnets:
+    Description: Provide a list of Subnet IDs for the load balancers (Leave blank to use the ServerSubnets specified above)
+    Type: List<AWS::EC2::Subnet::Id>
+  DatabaseSubnets:
+    Description: Provide a list of Subnet IDs for the Postgres database (Leave blank to use the ServerSubnets specified above)
+    Type: List<AWS::EC2::Subnet::Id>
   InboundAdminSecurityGroupId:
     Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
     Type: AWS::EC2::SecurityGroup::Id
@@ -217,6 +223,8 @@ Metadata:
         Parameters:
           - VPC
           - ServerSubnets
+          - LoadBalancerSubnets
+          - DatabaseSubnets
           - KeyName
           - InboundAdminSecurityGroupId
           - ContactEmail
@@ -268,6 +276,10 @@ Conditions:
     !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
   CreateFrontendSecurityGroup:
     !Equals [ !Ref FrontendSecurityGroupId, '' ]
+  UseServerSubnetsForLoadBalancers:
+    !Equals [ !Select [ 0, !Ref LoadBalancerSubnets], '' ]
+  UseServerSubnetsForDatabase:
+    !Equals [ !Select [ 0, !Ref DatabaseSubnets], '' ]
 
 # STOP:  Do not replace the AMI list unless you 100% know what you're doing
 #        and are fully prepared to lose all support. This template now depends
@@ -464,7 +476,7 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/automate.yaml
       Parameters:
         VPC: !Ref VPC
-        LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
+        LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets]]
         AutomateSubnet: !Select [ "0", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref AutomateSSLCertificateARN
         AutomateAdminPassword: !Ref ChefAutomateAdminPassword
@@ -536,7 +548,7 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/supermarket.yaml
       Parameters:
         VPC: !Ref VPC
-        LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
+        LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets]]
         SupermarketSubnet: !Select [ "0", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref SupermarketSSLCertificateARN
         InboundAdminSecurityGroupId: !Ref InboundAdminSecurityGroupId
