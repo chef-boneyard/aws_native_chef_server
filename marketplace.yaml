@@ -454,7 +454,7 @@ Resources:
   AutomateStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/automate.yaml
+      TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/automate.yaml
       Parameters:
         VPC: !Ref VPC
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
@@ -484,7 +484,7 @@ Resources:
   ChefServerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/chef_server_ha.yaml
+      TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/chef_server_ha.yaml
       Parameters:
         AutomationBucket: !Ref AutomationBucket
         VPC: !Ref VPC
@@ -527,7 +527,7 @@ Resources:
   SupermarketStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/supermarket.yaml
+      TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/supermarket.yaml
       Parameters:
         VPC: !Ref VPC
         LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
