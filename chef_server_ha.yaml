@@ -709,7 +709,7 @@ Resources:
   PostgreSQLStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/chef_rds.yaml
+      TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/chef_rds.yaml
       Parameters:
         VPC: !Sub ${VPC}
         ChefServerSubnets: !Join [ ",", !Ref ChefServerSubnets ]
@@ -729,7 +729,7 @@ Resources:
   ElasticsearchStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/chef_elasticsearch.yaml
+      TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/chef_elasticsearch.yaml
       Parameters:
         VPC: !Sub ${VPC}
         ChefServerSubnets: !Join [ ",", !Ref ChefServerSubnets ]
@@ -762,7 +762,7 @@ Resources:
   OpsDashboardStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${AutomationBucket}/${TemplateVersion}/chef_server_ops_dashboard.yaml
+      TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/chef_server_ops_dashboard.yaml
       Parameters:
         BootstrapAutoScaleGroup: !Ref BootstrapAutoScaleGroup
         FrontendAutoScaleGroup: !Ref FrontendAutoScaleGroup
