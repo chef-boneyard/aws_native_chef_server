@@ -7,8 +7,8 @@ Parameters:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
   LoadBalancerSubnets:
-    Description: Provide a comma separated list of Subnet IDs for the Chef Servers (must be at least 2 within the specified VPC)
-    Type: CommaDelimitedList
+    Description: Provide a list of Subnet IDs for the Chef Servers (must be at least 2 within the specified VPC)
+    Type: List<AWS::EC2::Subnet::Id>
   SupermarketSubnet:
     Description: Provide a single Subnet ID for the Supermarket Server (must be within the specified VPC)
     Type: AWS::EC2::Subnet::Id
