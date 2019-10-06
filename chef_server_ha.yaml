@@ -14,11 +14,11 @@ Parameters:
     Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
     Type: List<AWS::EC2::Subnet::Id>
   LoadBalancerSubnets:
-    Description: Provide a list of Subnet IDs for the load balancers (Leave blank to use the ServerSubnets specified above)
-    Type: List<AWS::EC2::Subnet::Id>
+    Description: Provide a comma separated list of Subnet IDs for the load balancers (Leave blank to use the ChefServerSubnets specified above)
+    Type: CommaDelimitedList
   DatabaseSubnets:
-    Description: Provide a list of Subnet IDs for the Postgres database (Leave blank to use the ServerSubnets specified above)
-    Type: List<AWS::EC2::Subnet::Id>
+    Description: Provide a comma separated list of Subnet IDs for the Postgres database (Leave blank to use the ChefServerSubnets specified above)
+    Type: CommaDelimitedList
   SSLCertificateARN:
     Description: SSL Certficate ARN for SSL Certficate
     Type: String
@@ -310,7 +310,7 @@ Resources:
     Properties:
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroupId
-      Subnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets]]
+      Subnets: !If [UseServerSubnetsForLoadBalancers, !Ref ChefServerSubnets, !Ref LoadBalancerSubnets ]
       Scheme: !Ref LoadBalancerScheme
       Listeners:
         - LoadBalancerPort: '10000'
@@ -335,7 +335,7 @@ Resources:
     Properties:
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroupId
-      Subnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets]]
+      Subnets: !If [UseServerSubnetsForLoadBalancers, !Ref ChefServerSubnets, !Ref LoadBalancerSubnets ]
       # IpAddressType: dualstack
       Scheme: !Ref LoadBalancerScheme
       Tags:
@@ -722,7 +722,7 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/chef_rds.yaml
       Parameters:
         VPC: !Sub ${VPC}
-        ChefServerSubnets: !If [UseServerSubnetsForDatabase, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref DatabaseSubnets]]
+        ChefServerSubnets: !If [UseServerSubnetsForDatabase, !Join [ ",", !Ref ChefServerSubnets ], !Join [ ",", !Ref DatabaseSubnets ] ]
         DBPassword: !Ref DBPassword
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept

@@ -13,6 +13,12 @@ Parameters:
   ServerSubnets:
     Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
     Type: List<AWS::EC2::Subnet::Id>
+  LoadBalancerSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the load balancers (Leave blank to use the ServerSubnets specified above)
+    Type: CommaDelimitedList
+  DatabaseSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the Postgres database (Leave blank to use the ServerSubnets specified above)
+    Type: CommaDelimitedList
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: AWS::EC2::KeyPair::KeyName
@@ -196,6 +202,10 @@ Parameters:
 Conditions:
   2ZoneES:
     !Equals [!Ref ChefElasticSearchShardCount, 2]
+  UseServerSubnetsForLoadBalancers:
+    !Equals [ !Select [ 0, !Ref LoadBalancerSubnets], '' ]
+  UseServerSubnetsForDatabase:
+    !Equals [ !Select [ 0, !Ref DatabaseSubnets], '' ]
 
 Metadata:
   cfn-lint:
@@ -472,6 +482,7 @@ Resources:
         AutomateDataCollectorToken: !Ref ChefAutomateToken
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
         FrontendSecurityGroupId: !Ref FrontendSecurityGroup
         AutomateIamRole: !Ref ChefRole
         Route53HostedZone: !Ref Route53HostedZone
@@ -503,12 +514,14 @@ Resources:
         DBAllocatedStorage: !Ref ChefDBAllocatedStorage
         DBIops: !Ref ChefDBIops
         DBBackupDaystoKeep: !Ref ChefDBBackupDaystoKeep
+        DatabaseSubnets: !If [UseServerSubnetsForDatabase, !Join [",", !Ref ServerSubnets], !Join [",", !Ref DatabaseSubnets]]
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount
         ElasticSearchReplicaCount: !If [2ZoneES, 1, 2]
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
         FrontendSecurityGroupId: !Ref FrontendSecurityGroup
         ChefServerAssociatePublicIpAddress: !Ref AssociatePublicIpAddress
         ChefServerIamRole: !Ref ChefRole
@@ -530,7 +543,7 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/supermarket.yaml
       Parameters:
         VPC: !Ref VPC
-        LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
+        LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
         SupermarketSubnet: !Select [ "0", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref SupermarketSSLCertificateARN
         InboundAdminSecurityGroupId: !Ref InboundAdminSecurityGroupId

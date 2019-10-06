@@ -7,8 +7,8 @@ Parameters:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
   LoadBalancerSubnets:
-    Description: Provide a list of Subnet IDs for the Load Balancers (must be at least 2 within the specified VPC)
-    Type: List<AWS::EC2::Subnet::Id>
+    Description: Provide a comma separated list of Subnet IDs for the Load Balancers (must be at least 2 within the specified VPC)
+    Type: CommaDelimitedList
   AutomateSubnet:
     Description: Provide a single Subnet ID for the Automate Server (must be within the specified VPC)
     Type: AWS::EC2::Subnet::Id
@@ -96,8 +96,6 @@ Metadata:
 Conditions:
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
-  UsePublicIp:
-    !Equals [ !Ref LoadBalancerScheme, 'internet-facing']
 
 Resources:
   AutomateInstanceProfile:
@@ -573,4 +571,4 @@ Outputs:
       Name: !Sub "${AWS::StackName}-DNSName"
   ServerIP:
     Description: The IP Address of the Automate Server
-    Value: !If [UsePublicIp, !GetAtt AutomateServer.PublicIp, !GetAtt AutomateServer.PrivateIp]
+    Value: !GetAtt AutomateServer.PrivateIp
