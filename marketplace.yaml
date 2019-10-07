@@ -224,6 +224,9 @@ Metadata:
         Parameters:
           - VPC
           - ServerSubnets
+          - LoadBalancerSubnets
+          - DatabaseSubnets
+          - ElasticSearchSubnets
           - KeyName
           - InboundClientCidr
           - InboundAdminCidr
