@@ -228,6 +228,7 @@ Metadata:
           - ServerSubnets
           - LoadBalancerSubnets
           - DatabaseSubnets
+          - ElasticSearchSubnets
           - KeyName
           - InboundAdminSecurityGroupId
           - ContactEmail
