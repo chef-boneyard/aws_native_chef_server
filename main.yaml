@@ -19,6 +19,9 @@ Parameters:
   DatabaseSubnets:
     Description: Provide a comma separated list of Subnet IDs for the Postgres database (Leave blank to use the ServerSubnets specified above)
     Type: CommaDelimitedList
+  ElasticSearchSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the ElasticSearch cluster (Leave blank to use the ServerSubnets specified above)
+    Type: CommaDelimitedList
   InboundAdminSecurityGroupId:
     Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
     Type: AWS::EC2::SecurityGroup::Id
@@ -280,6 +283,8 @@ Conditions:
     !Equals [ !Select [ 0, !Ref LoadBalancerSubnets], '' ]
   UseServerSubnetsForDatabase:
     !Equals [ !Select [ 0, !Ref DatabaseSubnets], '' ]
+  UseServerSubnetsForElasticSearch:
+    !Equals [ !Select [ 0, !Ref ElasticSearchSubnets], '' ]
 
 # STOP:  Do not replace the AMI list unless you 100% know what you're doing
 #        and are fully prepared to lose all support. This template now depends
@@ -526,6 +531,7 @@ Resources:
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount
+        ElasticSearchSubnets: !If [UseServerSubnetsForElasticSearch, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref ElasticSearchSubnets ] ]
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]

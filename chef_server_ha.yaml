@@ -19,6 +19,9 @@ Parameters:
   DatabaseSubnets:
     Description: Provide a comma separated list of Subnet IDs for the Postgres database (Leave blank to use the ChefServerSubnets specified above)
     Type: CommaDelimitedList
+  ElasticSearchSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the ElasticSearch cluster (Leave blank to use the ChefServerSubnets specified above)
+    Type: CommaDelimitedList
   SSLCertificateARN:
     Description: SSL Certficate ARN for SSL Certficate
     Type: String
@@ -206,6 +209,8 @@ Conditions:
     !Equals [ !Select [ 0, !Ref LoadBalancerSubnets], '' ]
   UseServerSubnetsForDatabase:
     !Equals [ !Select [ 0, !Ref DatabaseSubnets], '' ]
+  UseServerSubnetsForElasticSearch:
+    !Equals [ !Select [ 0, !Ref ElasticSearchSubnets], '' ]
 
 Resources:
 # Frontend Autoscale Groups
@@ -742,7 +747,7 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/chef_elasticsearch.yaml
       Parameters:
         VPC: !Sub ${VPC}
-        ChefServerSubnets: !Join [ ",", !Ref ChefServerSubnets ]
+        ChefServerSubnets: !If [UseServerSubnetsForElasticSearch, !Join [ ",", !Ref ChefServerSubnets ], !Join [ ",", !Ref ElasticSearchSubnets ] ]
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
         ElasticSearchInstanceType: !Ref ElasticSearchInstanceType

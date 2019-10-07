@@ -19,6 +19,9 @@ Parameters:
   DatabaseSubnets:
     Description: Provide a comma separated list of Subnet IDs for the Postgres database (Leave blank to use the ServerSubnets specified above)
     Type: CommaDelimitedList
+  ElasticSearchSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the ElasticSearch cluster (Leave blank to use the ServerSubnets specified above)
+    Type: CommaDelimitedList
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: AWS::EC2::KeyPair::KeyName
@@ -206,6 +209,8 @@ Conditions:
     !Equals [ !Select [ 0, !Ref LoadBalancerSubnets], '' ]
   UseServerSubnetsForDatabase:
     !Equals [ !Select [ 0, !Ref DatabaseSubnets], '' ]
+  UseServerSubnetsForElasticSearch:
+    !Equals [ !Select [ 0, !Ref ElasticSearchSubnets], '' ]
 
 Metadata:
   cfn-lint:
@@ -519,6 +524,7 @@ Resources:
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount
         ElasticSearchReplicaCount: !If [2ZoneES, 1, 2]
+        ElasticSearchSubnets: !If [UseServerSubnetsForElasticSearch, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref ElasticSearchSubnets ] ]
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
         LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
