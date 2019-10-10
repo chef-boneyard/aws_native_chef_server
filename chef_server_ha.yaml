@@ -13,6 +13,15 @@ Parameters:
   ChefServerSubnets:
     Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
     Type: List<AWS::EC2::Subnet::Id>
+  LoadBalancerSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the load balancers (Leave blank to use the ChefServerSubnets specified above)
+    Type: CommaDelimitedList
+  DatabaseSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the Postgres database (Leave blank to use the ChefServerSubnets specified above)
+    Type: CommaDelimitedList
+  ElasticSearchSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the ElasticSearch cluster (Leave blank to use the ChefServerSubnets specified above)
+    Type: CommaDelimitedList
   SSLCertificateARN:
     Description: SSL Certficate ARN for SSL Certficate
     Type: String
@@ -196,6 +205,12 @@ Metadata:
 Conditions:
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
+  UseServerSubnetsForLoadBalancers:
+    !Equals [ !Select [ 0, !Ref LoadBalancerSubnets], '' ]
+  UseServerSubnetsForDatabase:
+    !Equals [ !Select [ 0, !Ref DatabaseSubnets], '' ]
+  UseServerSubnetsForElasticSearch:
+    !Equals [ !Select [ 0, !Ref ElasticSearchSubnets], '' ]
 
 Resources:
 # Frontend Autoscale Groups
@@ -300,7 +315,7 @@ Resources:
     Properties:
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroupId
-      Subnets: !Ref ChefServerSubnets
+      Subnets: !If [UseServerSubnetsForLoadBalancers, !Ref ChefServerSubnets, !Ref LoadBalancerSubnets ]
       Scheme: !Ref LoadBalancerScheme
       Listeners:
         - LoadBalancerPort: '10000'
@@ -325,7 +340,7 @@ Resources:
     Properties:
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroupId
-      Subnets: !Ref ChefServerSubnets
+      Subnets: !If [UseServerSubnetsForLoadBalancers, !Ref ChefServerSubnets, !Ref LoadBalancerSubnets ]
       # IpAddressType: dualstack
       Scheme: !Ref LoadBalancerScheme
       Tags:
@@ -712,7 +727,7 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/chef_rds.yaml
       Parameters:
         VPC: !Sub ${VPC}
-        ChefServerSubnets: !Join [ ",", !Ref ChefServerSubnets ]
+        ChefServerSubnets: !If [UseServerSubnetsForDatabase, !Join [ ",", !Ref ChefServerSubnets ], !Join [ ",", !Ref DatabaseSubnets ] ]
         DBPassword: !Ref DBPassword
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
@@ -732,7 +747,7 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/chef_elasticsearch.yaml
       Parameters:
         VPC: !Sub ${VPC}
-        ChefServerSubnets: !Join [ ",", !Ref ChefServerSubnets ]
+        ChefServerSubnets: !If [UseServerSubnetsForElasticSearch, !Join [ ",", !Ref ChefServerSubnets ], !Join [ ",", !Ref ElasticSearchSubnets ] ]
         ContactEmail: !Ref ContactEmail
         ContactDept: !Ref ContactDept
         ElasticSearchInstanceType: !Ref ElasticSearchInstanceType
