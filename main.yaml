@@ -13,6 +13,15 @@ Parameters:
   ServerSubnets:
     Description: Provide a list of Subnet IDs for the Chef Servers (must be within the specified VPC)
     Type: List<AWS::EC2::Subnet::Id>
+  LoadBalancerSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the load balancers (Leave blank to use the ServerSubnets specified above)
+    Type: CommaDelimitedList
+  DatabaseSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the Postgres database (Leave blank to use the ServerSubnets specified above)
+    Type: CommaDelimitedList
+  ElasticSearchSubnets:
+    Description: Provide a comma separated list of Subnet IDs for the ElasticSearch cluster (Leave blank to use the ServerSubnets specified above)
+    Type: CommaDelimitedList
   InboundAdminSecurityGroupId:
     Description: Select an existing Security Group in your VPC to define administrative ACLs (SSH, monitoring tools, etc) to the Chef servers
     Type: AWS::EC2::SecurityGroup::Id
@@ -217,6 +226,9 @@ Metadata:
         Parameters:
           - VPC
           - ServerSubnets
+          - LoadBalancerSubnets
+          - DatabaseSubnets
+          - ElasticSearchSubnets
           - KeyName
           - InboundAdminSecurityGroupId
           - ContactEmail
@@ -268,6 +280,12 @@ Conditions:
     !Equals [ !Ref LoadBalancerSecurityGroupId, '' ]
   CreateFrontendSecurityGroup:
     !Equals [ !Ref FrontendSecurityGroupId, '' ]
+  UseServerSubnetsForLoadBalancers:
+    !Equals [ !Select [ 0, !Ref LoadBalancerSubnets], '' ]
+  UseServerSubnetsForDatabase:
+    !Equals [ !Select [ 0, !Ref DatabaseSubnets], '' ]
+  UseServerSubnetsForElasticSearch:
+    !Equals [ !Select [ 0, !Ref ElasticSearchSubnets], '' ]
 
 # STOP:  Do not replace the AMI list unless you 100% know what you're doing
 #        and are fully prepared to lose all support. This template now depends
@@ -464,7 +482,6 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/automate.yaml
       Parameters:
         VPC: !Ref VPC
-        LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
         AutomateSubnet: !Select [ "0", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref AutomateSSLCertificateARN
         AutomateAdminPassword: !Ref ChefAutomateAdminPassword
@@ -479,6 +496,7 @@ Resources:
         AutomateDataCollectorToken: !Ref ChefAutomateToken
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+        LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         AutomateIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
         Route53HostedZone: !Ref Route53HostedZone
@@ -510,11 +528,14 @@ Resources:
         DBAllocatedStorage: !Ref ChefDBAllocatedStorage
         DBIops: !Ref ChefDBIops
         DBBackupDaystoKeep: !Ref ChefDBBackupDaystoKeep
+        DatabaseSubnets: !If [UseServerSubnetsForDatabase, !Join [",", !Ref ServerSubnets], !Join [",", !Ref DatabaseSubnets]]
         ElasticSearchInstanceType: !Ref ChefElasticSearchInstanceType
         ElasticSearchVersion: !Ref ChefElasticSearchVersion
         ElasticSearchShardCount: !Ref ChefElasticSearchShardCount
+        ElasticSearchSubnets: !If [UseServerSubnetsForElasticSearch, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref ElasticSearchSubnets ] ]
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+        LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         ChefServerAssociatePublicIpAddress: !Ref AssociatePublicIpAddress
         ChefServerIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
@@ -536,7 +557,6 @@ Resources:
       TemplateURL: !Sub https://${AutomationBucket}.s3.amazonaws.com/${TemplateVersion}/supermarket.yaml
       Parameters:
         VPC: !Ref VPC
-        LoadBalancerSubnets: !Join [ ",", !Ref ServerSubnets ]
         SupermarketSubnet: !Select [ "0", !Ref ServerSubnets ]
         SSLCertificateARN: !Ref SupermarketSSLCertificateARN
         InboundAdminSecurityGroupId: !Ref InboundAdminSecurityGroupId
@@ -550,6 +570,7 @@ Resources:
         DataVolumeSize: !Ref SupermarketDataVolumeSize
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
+        LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         SupermarketIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
         ChefSecretsBucket: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket]

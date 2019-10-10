@@ -96,8 +96,6 @@ Metadata:
 Conditions:
   CreateRoute53Record:
     !Not [!Equals [ !Ref Route53HostedZone, '' ] ]
-  UsePublicIp:
-    !Equals [ !Ref LoadBalancerScheme, 'internet-facing']
 
 Resources:
   AutomateInstanceProfile:
@@ -573,4 +571,4 @@ Outputs:
       Name: !Sub "${AWS::StackName}-DNSName"
   ServerIP:
     Description: The IP Address of the Automate Server
-    Value: !If [UsePublicIp, !GetAtt AutomateServer.PublicIp, !GetAtt AutomateServer.PrivateIp]
+    Value: !GetAtt AutomateServer.PrivateIp
