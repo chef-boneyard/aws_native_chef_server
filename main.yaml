@@ -175,6 +175,14 @@ Parameters:
     AllowedValues:
     - 'internet-facing'
     - 'internal'
+  LoadBalancerSecurityPolicy:
+    Description: The SSL security policy to use on the ELBs
+    Type: String
+    Default: ELBSecurityPolicy-2016-08
+    AllowedValues:
+      - 'ELBSecurityPolicy-2016-08'
+      - 'ELBSecurityPolicy-TLS-1-1-2017-01'
+      - 'ELBSecurityPolicy-TLS-1-2-2017-01'
   LoadBalancerSecurityGroupId:
     Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
@@ -269,6 +277,7 @@ Metadata:
           default: "Security Settings"
         Parameters:
           - LoadBalancerScheme
+          - LoadBalancerSecurityPolicy
           - AssociatePublicIpAddress
 
 Conditions:
@@ -497,6 +506,7 @@ Resources:
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
+        LoadBalancerSecurityPolicy: !Ref LoadBalancerSecurityPolicy
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         AutomateIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
         Route53HostedZone: !Ref Route53HostedZone
@@ -536,6 +546,7 @@ Resources:
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
+        LoadBalancerSecurityPolicy: !Ref LoadBalancerSecurityPolicy
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         ChefServerAssociatePublicIpAddress: !Ref AssociatePublicIpAddress
         ChefServerIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
@@ -571,6 +582,7 @@ Resources:
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !If [CreateLoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroup, !Ref LoadBalancerSecurityGroupId]
         LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
+        LoadBalancerSecurityPolicy: !Ref LoadBalancerSecurityPolicy
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         SupermarketIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
         ChefSecretsBucket: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket]

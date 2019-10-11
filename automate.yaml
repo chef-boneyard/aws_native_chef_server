@@ -61,6 +61,14 @@ Parameters:
     AllowedValues:
     - 'internet-facing'
     - 'internal'
+  LoadBalancerSecurityPolicy:
+    Description: The SSL security policy to use on the ELBs
+    Type: String
+    Default: ELBSecurityPolicy-2016-08
+    AllowedValues:
+      - 'ELBSecurityPolicy-2016-08'
+      - 'ELBSecurityPolicy-TLS-1-1-2017-01'
+      - 'ELBSecurityPolicy-TLS-1-2-2017-01'
   LoadBalancerSecurityGroupId:
     Description: Supply a security group for your load balancer (leave blank to have it created for you). Using the default security group is recommended.
     Type: String
@@ -130,6 +138,7 @@ Resources:
         LoadBalancerArn: !Ref ChefALB
         Port: 443
         Protocol: HTTPS
+        SslPolicy: !Ref LoadBalancerSecurityPolicy
         DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref ChefTargetGroup
@@ -379,6 +388,7 @@ Resources:
           commands:
             01_setup:
               command: !Sub |
+                yum install -y python-pip
                 mkdir -p /var/lib/awslogs
                 python /var/cache/marketplace/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
         final_stage:
