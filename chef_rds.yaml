@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server PostgreSQL v5.0.4
+Description: Chef Server PostgreSQL v5.0.5
 
 Parameters:
   # Required Parameters

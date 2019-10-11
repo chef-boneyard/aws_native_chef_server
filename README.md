@@ -37,8 +37,8 @@ You can launch this stack with the push of a button:
 
 | Edition | Version | Est Monthly cost | Launch button |
 | ------- | ------- | ---------------- | ------------- |
-| High Performance | 5.0.4 | [$1500*](https://calculator.s3.amazonaws.com/index.html#r=IAD&s=EC2&key=calc-E9251374-D80C-45B7-BED7-C9C9778B1D6C) | <p><a href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?templateURL=https:%2F%2Fs3.amazonaws.com%2Faws-native-chef-server%2F5.0.4%2Fmain.yaml&amp;stackName=my-chef-stack" target="_blank"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png" alt="Launch Stack" /></a></p> |
-| Lowest Cost | 5.0.4 | [$320*](https://calculator.s3.amazonaws.com/index.html#r=IAD&s=EC2&key=files/calc-165638db8e331664846c0d6654d743377bd3eac6&v=ver20190604sQ) | <p><a href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?templateURL=https:%2F%2Fs3.amazonaws.com%2Faws-native-chef-server%2F5.0.4%2Fmarketplace.yaml&amp;stackName=my-chef-stack" target="_blank"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png" alt="Launch Stack" /></a></p> |
+| High Performance | 5.0.5 | [$1500*](https://calculator.s3.amazonaws.com/index.html#r=IAD&s=EC2&key=calc-E9251374-D80C-45B7-BED7-C9C9778B1D6C) | <p><a href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?templateURL=https:%2F%2Fs3.amazonaws.com%2Faws-native-chef-server%2F5.0.5%2Fmain.yaml&amp;stackName=my-chef-stack" target="_blank"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png" alt="Launch Stack" /></a></p> |
+| Lowest Cost | 5.0.5 | [$320*](https://calculator.s3.amazonaws.com/index.html#r=IAD&s=EC2&key=files/calc-165638db8e331664846c0d6654d743377bd3eac6&v=ver20190604sQ) | <p><a href="https://console.aws.amazon.com/cloudformation/home#/stacks/new?templateURL=https:%2F%2Fs3.amazonaws.com%2Faws-native-chef-server%2F5.0.5%2Fmarketplace.yaml&amp;stackName=my-chef-stack" target="_blank"><img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png" alt="Launch Stack" /></a></p> |
 
 _*NOTE: Estimated costs are just that, your mileage will vary. Use reserved instances to greatly reduce costs for long-running clusters._
 
@@ -48,7 +48,7 @@ However, the most repeatable and least error-prone way to launch this stack is t
 ```bash
 MYBUCKET=aws-native-chef-server
 MYID=mycompany
-VERSION=5.0.4
+VERSION=5.0.5
 EDITION=main  # main or marketplace
 # Configure the automate_stack_parameters.json and then launch the cloudformation stack:
 # If you're using your own bucket, uncomment the next line:
@@ -69,7 +69,7 @@ If you've made changes to the template content or parameters and you wish to upd
 ```bash
 MYBUCKET=aws-native-chef-server
 MYID=mycompany
-VERSION=5.0.4
+VERSION=5.0.5
 EDITION=main  # main or marketplace
 # If you're using your own bucket, uncomment the next line:
 # aws s3 sync . s3://$MYBUCKET/$VERSION/ --exclude "*" --include "*.yaml" --include "files/*" && \
