@@ -681,7 +681,6 @@ Resources:
           commands:
             01_setup:
               command: !Sub |
-                yum install -y python-pip
                 mkdir -p /var/lib/awslogs
                 python /var/cache/marketplace/awslogs-agent-setup.py --region ${AWS::Region} --non-interactive -c /etc/awslogs/awslogs.conf
         filebeat:
