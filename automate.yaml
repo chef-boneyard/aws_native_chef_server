@@ -130,6 +130,7 @@ Resources:
         LoadBalancerArn: !Ref ChefALB
         Port: 443
         Protocol: HTTPS
+        SslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
         DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref ChefTargetGroup
