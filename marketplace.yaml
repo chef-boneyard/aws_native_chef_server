@@ -183,14 +183,6 @@ Parameters:
     AllowedValues:
     - 'internet-facing'
     - 'internal'
-  LoadBalancerSecurityPolicy:
-    Description: The SSL security policy to use on the ELBs
-    Type: String
-    Default: ELBSecurityPolicy-2016-08
-    AllowedValues:
-      - 'ELBSecurityPolicy-2016-08'
-      - 'ELBSecurityPolicy-TLS-1-1-2017-01'
-      - 'ELBSecurityPolicy-TLS-1-2-2017-01'
   AssociatePublicIpAddress:
     Description: Assign public IP addresses to the Chef Servers or not
     Type: String
@@ -276,7 +268,6 @@ Metadata:
           default: "Security Settings"
         Parameters:
           - LoadBalancerScheme
-          - LoadBalancerSecurityPolicy
           - AssociatePublicIpAddress
 
 # STOP:  Do not replace the AMI list unless you 100% know what you're doing
@@ -499,7 +490,6 @@ Resources:
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
         LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
-        LoadBalancerSecurityPolicy: !Ref LoadBalancerSecurityPolicy
         FrontendSecurityGroupId: !Ref FrontendSecurityGroup
         AutomateIamRole: !Ref ChefRole
         Route53HostedZone: !Ref Route53HostedZone
@@ -540,7 +530,6 @@ Resources:
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
         LoadBalancerSubnets: !If [UseServerSubnetsForLoadBalancers, !Join [ ",", !Ref ServerSubnets ], !Join [ ",", !Ref LoadBalancerSubnets ] ]
-        LoadBalancerSecurityPolicy: !Ref LoadBalancerSecurityPolicy
         FrontendSecurityGroupId: !Ref FrontendSecurityGroup
         ChefServerAssociatePublicIpAddress: !Ref AssociatePublicIpAddress
         ChefServerIamRole: !Ref ChefRole
@@ -576,7 +565,6 @@ Resources:
         DataVolumeSize: !Ref SupermarketDataVolumeSize
         LoadBalancerScheme: !Ref LoadBalancerScheme
         LoadBalancerSecurityGroupId: !Ref LoadBalancerSecurityGroup
-        LoadBalancerSecurityPolicy: !Ref LoadBalancerSecurityPolicy
         FrontendSecurityGroupId: !Ref FrontendSecurityGroup
         SupermarketIamRole: !Ref ChefRole
         ChefSecretsBucket: !Ref ChefBucket
