@@ -74,6 +74,10 @@ Parameters:
     MaxValue: 16000
   ###############################################################################
   # Chef Server Stack Settings
+  ChefServerCustomConfig:
+    Default: ''
+    Type: String
+    Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb (optional)
   ChefSSLCertificateARN:
     Description: ARN for SSL Certficate, pre-create this in AWS Certificate Manager
     Type: String
@@ -249,6 +253,7 @@ Metadata:
       - Label:
           default: "Chef Server Settings"
         Parameters:
+          - ChefServerCustomConfig
           - ChefServerDnsRecordName
           - ChefInstanceType
           - ChefDBInstanceClass
@@ -539,6 +544,7 @@ Resources:
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         ChefServerAssociatePublicIpAddress: !Ref AssociatePublicIpAddress
         ChefServerIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
+        ChefServerCustomConfig: !Ref ChefServerCustomConfig
         ChefSecretsBucket: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket]
         ChefAutomateServerUrl: !Sub "https://${AutomateStack.Outputs.DNSName}"
         ChefAutomateToken: !Ref ChefAutomateToken
