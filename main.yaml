@@ -74,10 +74,6 @@ Parameters:
     MaxValue: 16000
   ###############################################################################
   # Chef Server Stack Settings
-  ChefServerCustomConfig:
-    Default: ''
-    Type: String
-    Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb (optional)
   ChefSSLCertificateARN:
     Description: ARN for SSL Certficate, pre-create this in AWS Certificate Manager
     Type: String
@@ -149,6 +145,10 @@ Parameters:
     Type: Number
     MinValue: 2
     MaxValue: 3
+  ChefServerCustomConfig:
+    Default: ''
+    Type: String
+    Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb (optional)
   ###############################################################################
   # Automate Stack Settings
   SupermarketSSLCertificateARN:
@@ -253,7 +253,6 @@ Metadata:
       - Label:
           default: "Chef Server Settings"
         Parameters:
-          - ChefServerCustomConfig
           - ChefServerDnsRecordName
           - ChefInstanceType
           - ChefDBInstanceClass
@@ -264,6 +263,7 @@ Metadata:
           - ChefElasticSearchInstanceType
           - ChefElasticSearchVersion
           - ChefElasticSearchShardCount
+          - ChefServerCustomConfig
       - Label:
           default: "Supermarket Settings"
         Parameters:
