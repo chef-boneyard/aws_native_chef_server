@@ -145,6 +145,10 @@ Parameters:
     Type: Number
     MinValue: 2
     MaxValue: 3
+  ChefServerCustomConfig:
+    Default: ''
+    Type: String
+    Description: The S3 location of a custom chef-server configuration snippet that will be injected into the chef-server.rb (optional)
   ###############################################################################
   # Automate Stack Settings
   SupermarketSSLCertificateARN:
@@ -259,6 +263,7 @@ Metadata:
           - ChefElasticSearchInstanceType
           - ChefElasticSearchVersion
           - ChefElasticSearchShardCount
+          - ChefServerCustomConfig
       - Label:
           default: "Supermarket Settings"
         Parameters:
@@ -539,6 +544,7 @@ Resources:
         FrontendSecurityGroupId: !If [CreateFrontendSecurityGroup, !Ref FrontendSecurityGroup, !Ref FrontendSecurityGroupId]
         ChefServerAssociatePublicIpAddress: !Ref AssociatePublicIpAddress
         ChefServerIamRole: !If [CreateChefIamRole, !Ref ChefRole, !Ref ExistingIamRole]
+        ChefServerCustomConfig: !Ref ChefServerCustomConfig
         ChefSecretsBucket: !If [CreateChefSecretsBucket, !Ref ChefBucket, !Ref ExistingSecretsBucket]
         ChefAutomateServerUrl: !Sub "https://${AutomateStack.Outputs.DNSName}"
         ChefAutomateToken: !Ref ChefAutomateToken
