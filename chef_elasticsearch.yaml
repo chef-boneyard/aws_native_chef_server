@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server Elasticsearch 5.0.5
+Description: Chef Server Elasticsearch 5.1.0
 
 Parameters:
   # Required Parameters

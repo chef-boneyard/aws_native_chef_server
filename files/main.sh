@@ -36,12 +36,12 @@ function upload_config () {
 }
 
 function server_reconfigure () {
-  chef-server-ctl reconfigure --accept-license
+  chef-server-ctl reconfigure --chef-license=accept
   chef-manage-ctl reconfigure --accept-license
 }
 
 function server_upgrade () {
-  chef-server-ctl reconfigure --accept-license
+  chef-server-ctl reconfigure --chef-license=accept
   chef-server-ctl upgrade
   chef-server-ctl start
   chef-manage-ctl reconfigure --accept-license

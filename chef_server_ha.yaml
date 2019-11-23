@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server (auto-scaling HA) v5.0.5
+Description: AWS Native Chef Server (auto-scaling HA) v5.1.0
 
 Parameters:
   # Required Parameters
@@ -194,7 +194,7 @@ Parameters:
     Type: String
   TemplateVersion:
     Type: String
-    Default: "5.0.5"
+    Default: "5.1.0"
 
 Metadata:
   cfn-lint:
@@ -484,7 +484,7 @@ Resources:
             /etc/opscode-push-jobs-server/opscode-push-jobs-server.rb:
               content: !Sub |
                 opscode_pushy_server['vip'] = '127.0.0.1'
-                opscode_pushy_server['server_name_advertised'] = '${ChefPJELB.DNSName}'
+                opscode_pushy_server['server_name_advertised'] = '${ChefPJELB.DNSName}'.downcase
             /etc/chef-manage/manage.rb:
               content: !Sub |
                 disable_sign_up ${DisableSignup}

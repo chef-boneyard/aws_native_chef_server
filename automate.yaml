@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Automate 2 (auto-recovering standalone) v5.0.5
+Description: AWS Native Automate 2 (auto-recovering standalone) v5.1.0
 
 Parameters:
   # Required Parameters

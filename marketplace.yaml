@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack for Marketplace v5.0.5
+Description: AWS Native Chef Stack for Marketplace v5.1.0
 
 Parameters:
   # Required Parameters
@@ -16,12 +16,15 @@ Parameters:
   LoadBalancerSubnets:
     Description: Provide a comma separated list of Subnet IDs for the load balancers (Leave blank to use the ServerSubnets specified above)
     Type: CommaDelimitedList
+    Default: ''
   DatabaseSubnets:
     Description: Provide a comma separated list of Subnet IDs for the Postgres database (Leave blank to use the ServerSubnets specified above)
     Type: CommaDelimitedList
+    Default: ''
   ElasticSearchSubnets:
     Description: Provide a comma separated list of Subnet IDs for the ElasticSearch cluster (Leave blank to use the ServerSubnets specified above)
     Type: CommaDelimitedList
+    Default: ''
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
     Type: AWS::EC2::KeyPair::KeyName
@@ -195,7 +198,7 @@ Parameters:
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
-    Default: "5.0.5"
+    Default: "5.1.0"
   LogsRetentionInDays:
     Description: Specifies the number of days you want to retain cloudwatch log events.
     Type: Number
@@ -276,37 +279,37 @@ Metadata:
 Mappings:
   AMI:
     eu-north-1:
-      centos: ami-07e92b1883d55d7bc
+      centos: ami-0b9af355d644500ce
     ap-south-1:
-      centos: ami-0d78c3bf6a2fdf20a
+      centos: ami-0d55d5856a64a8918
     eu-west-3:
-      centos: ami-0db035db681454e21
+      centos: ami-0dedf3f53f2557591
     eu-west-2:
-      centos: ami-09a6b6a433a42973c
+      centos: ami-04c86e4a44288c442
     eu-west-1:
-      centos: ami-0727179e13c301985
+      centos: ami-0b34ea9402583cc17
     ap-northeast-2:
-      centos: ami-08b90868ad438e29e
+      centos: ami-021ab66ea3552f872
     ap-northeast-1:
-      centos: ami-023ea71133db36dfd
+      centos: ami-083a80ec77b6c48f5
     sa-east-1:
-      centos: ami-098444de08c579c10
+      centos: ami-034441c2a437922b1
     ca-central-1:
-      centos: ami-01c1b4cb8890bb62b
+      centos: ami-0fae7558a8c3d4683
     ap-southeast-1:
-      centos: ami-085d925f40fe1373e
+      centos: ami-073d575257d1d42ea
     ap-southeast-2:
-      centos: ami-0f609dec884bb5c57
+      centos: ami-0595dd171f0627906
     eu-central-1:
-      centos: ami-0a260d2225c9b4e68
+      centos: ami-0ad4e9dfe9704c7a5
     us-east-1:
-      centos: ami-0286006e3661294a9
+      centos: ami-093b02d3970c7616d
     us-east-2:
-      centos: ami-0c3d358aecb129e20
+      centos: ami-0aa5e3a0d1fda1498
     us-west-1:
-      centos: ami-0a79079da071240ee
+      centos: ami-08e6c19ae4c1a2267
     us-west-2:
-      centos: ami-04699292ef1d82f98
+      centos: ami-01ddf45199de44e71
 
 Resources:
   ChefRole:
