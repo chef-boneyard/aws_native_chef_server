@@ -447,8 +447,8 @@ Resources:
           # trap "aws autoscaling set-instance-health --health-status Unhealthy --region ${AWS::Region} --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id)" ERR
           # Execute AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ServerLaunchConfig --region ${AWS::Region}
-          # All is well so signal success and let CF know wait function is complete
-          /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}'
+          # All is well so signal success and let CF know wait function is complete, ignore error after stack creation, CF will handle the missing signal anyway
+          /opt/aws/bin/cfn-signal -e 0 -r "Server setup complete" '${WaitHandle}' || echo "Ignore error"
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
