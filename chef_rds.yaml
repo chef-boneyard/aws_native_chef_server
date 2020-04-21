@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Chef Server PostgreSQL v5.1.0
+Description: Chef Server PostgreSQL v5.1.1
 
 Parameters:
   # Required Parameters
@@ -107,6 +107,7 @@ Resources:
   DBPostgres:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: 'Snapshot'
+    UpdateReplacePolicy: 'Snapshot'
     Properties:
       DBName: chef
       AllocatedStorage: !Ref DBAllocatedStorage

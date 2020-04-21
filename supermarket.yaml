@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Supermarket (auto-recovering standalone) v5.1.0
+Description: AWS Native Supermarket (auto-recovering standalone) v5.1.1
 
 Parameters:
   # Required Parameters
@@ -379,7 +379,7 @@ Resources:
       Name: !Sub ${Route53RecordName}.${Route53HostedZone}.
       Comment: !Sub Created by Cloudformation ${AWS::StackName}
       Type: CNAME
-      TTL: '900'
+      TTL: 900
       ResourceRecords:
       - !GetAtt ChefALB.DNSName
 
