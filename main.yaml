@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Stack v5.1.0
+Description: AWS Native Chef Stack v5.1.1
 
 Parameters:
   # Required Parameters
@@ -210,7 +210,7 @@ Parameters:
   TemplateVersion:
     Description: The version of this template to use (do not change this unless directed by support)
     Type: String
-    Default: "5.1.0"
+    Default: "5.1.1"
   Route53HostedZone:
     Type: String
     Default: ''
@@ -301,37 +301,37 @@ Conditions:
 Mappings:
   AMI:
     eu-north-1:
-      centos: ami-0b9af355d644500ce
+      centos: ami-0de88f7d3919bff01
     ap-south-1:
-      centos: ami-0d55d5856a64a8918
+      centos: ami-059bf998ba0404d35
     eu-west-3:
-      centos: ami-0dedf3f53f2557591
+      centos: ami-0e8657ef6fd01114c
     eu-west-2:
-      centos: ami-04c86e4a44288c442
+      centos: ami-090e9e25c26e324dc
     eu-west-1:
-      centos: ami-0b34ea9402583cc17
+      centos: ami-05541e1e65a2a6868
     ap-northeast-2:
-      centos: ami-021ab66ea3552f872
+      centos: ami-0636a9282805012e8
     ap-northeast-1:
-      centos: ami-083a80ec77b6c48f5
+      centos: ami-01eb50a7f6ce094b5
     sa-east-1:
-      centos: ami-034441c2a437922b1
+      centos: ami-01b61c53105334e65
     ca-central-1:
-      centos: ami-0fae7558a8c3d4683
+      centos: ami-0fb915e2d57f91cb1
     ap-southeast-1:
-      centos: ami-073d575257d1d42ea
+      centos: ami-083596ab63a3b17e8
     ap-southeast-2:
-      centos: ami-0595dd171f0627906
+      centos: ami-0d2308a0967f38960
     eu-central-1:
-      centos: ami-0ad4e9dfe9704c7a5
+      centos: ami-0d4a4ed0028a0e83d
     us-east-1:
-      centos: ami-093b02d3970c7616d
+      centos: ami-0833fccd37e8e6a76
     us-east-2:
-      centos: ami-0aa5e3a0d1fda1498
+      centos: ami-0f91e3dd35f959c96
     us-west-1:
-      centos: ami-08e6c19ae4c1a2267
+      centos: ami-0d42cc58c730139c2
     us-west-2:
-      centos: ami-01ddf45199de44e71
+      centos: ami-069a77779bcf7529d
 
 Resources:
   ChefRole:
