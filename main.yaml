@@ -302,37 +302,37 @@ Conditions:
 Mappings:
   AMI:
     eu-north-1:
-      centos: ami-0b90a61689a1959d9
+      centos: ami-038d5d2fdaff7b732
     ap-south-1:
-      centos: ami-0030dea64c277379b
+      centos: ami-03f63a3d862dcfee7
     eu-west-3:
-      centos: ami-07e0048518fbff782
+      centos: ami-0dc5e75129537907e
     eu-west-2:
-      centos: ami-02b14e78bbcfed4c3
+      centos: ami-0dbe5e28ba8da8c5b
     eu-west-1:
-      centos: ami-00cced3425b8e26c9
+      centos: ami-0540f3f5d370a85eb
     ap-northeast-2:
-      centos: ami-06e068bee310906fc
+      centos: ami-080f95a158245242c
     ap-northeast-1:
-      centos: ami-004f6c060d1c18426
+      centos: ami-08fb1e23c1e2367a6
     sa-east-1:
-      centos: ami-03764a3ef231647f8
+      centos: ami-0ec07aed2917dd057
     ca-central-1:
-      centos: ami-0ccf046a8117357e1
+      centos: ami-0ee5b73fd86ca44b2
     ap-southeast-1:
-      centos: ami-0115d2191f108af7c
+      centos: ami-0318a4fe6a8d647db
     ap-southeast-2:
-      centos: ami-00069b48e01775cb4
+      centos: ami-006d8ebdf7211096d
     eu-central-1:
-      centos: ami-0fe8f1c26a7804f6b
+      centos: ami-0b674d4cbc8f6d755
     us-east-1:
-      centos: ami-010b25d7343c5f95f
+      centos: ami-029f0effcf3479518
     us-east-2:
-      centos: ami-090f430a3250bf016
+      centos: ami-0fd0fcda20a6e8068
     us-west-1:
-      centos: ami-05b0f151b72ff950c
+      centos: ami-09d44a96729c84a98
     us-west-2:
-      centos: ami-072e83d774bfd95b6
+      centos: ami-0de3bb97ac8cbc305
 
 Resources:
   ChefRole:

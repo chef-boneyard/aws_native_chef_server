@@ -279,37 +279,37 @@ Metadata:
 Mappings:
   AMI:
     eu-north-1:
-      centos: ami-0b9af355d644500ce
+      centos: ami-038d5d2fdaff7b732
     ap-south-1:
-      centos: ami-0d55d5856a64a8918
+      centos: ami-03f63a3d862dcfee7
     eu-west-3:
-      centos: ami-0dedf3f53f2557591
+      centos: ami-0dc5e75129537907e
     eu-west-2:
-      centos: ami-04c86e4a44288c442
+      centos: ami-0dbe5e28ba8da8c5b
     eu-west-1:
-      centos: ami-0b34ea9402583cc17
+      centos: ami-0540f3f5d370a85eb
     ap-northeast-2:
-      centos: ami-021ab66ea3552f872
+      centos: ami-080f95a158245242c
     ap-northeast-1:
-      centos: ami-083a80ec77b6c48f5
+      centos: ami-08fb1e23c1e2367a6
     sa-east-1:
-      centos: ami-034441c2a437922b1
+      centos: ami-0ec07aed2917dd057
     ca-central-1:
-      centos: ami-0fae7558a8c3d4683
+      centos: ami-0ee5b73fd86ca44b2
     ap-southeast-1:
-      centos: ami-073d575257d1d42ea
+      centos: ami-0318a4fe6a8d647db
     ap-southeast-2:
-      centos: ami-0595dd171f0627906
+      centos: ami-006d8ebdf7211096d
     eu-central-1:
-      centos: ami-0ad4e9dfe9704c7a5
+      centos: ami-0b674d4cbc8f6d755
     us-east-1:
-      centos: ami-093b02d3970c7616d
+      centos: ami-029f0effcf3479518
     us-east-2:
-      centos: ami-0aa5e3a0d1fda1498
+      centos: ami-0fd0fcda20a6e8068
     us-west-1:
-      centos: ami-08e6c19ae4c1a2267
+      centos: ami-09d44a96729c84a98
     us-west-2:
-      centos: ami-01ddf45199de44e71
+      centos: ami-0de3bb97ac8cbc305
 
 Resources:
   ChefRole:
