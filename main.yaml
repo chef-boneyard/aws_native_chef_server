@@ -135,13 +135,14 @@ Parameters:
       'm3.medium.elasticsearch', 'm3.large.elasticsearch', 'm3.xlarge.elasticsearch', 'm3.medium.elasticsearch',
       'r3.large.elasticsearch', 'r3.xlarge.elasticsearch', 'r3.2xlarge.elasticsearch', 'r3.4xlarge.elasticsearch', 'r3.8xlarge.elasticsearch' ]
   ChefElasticSearchVersion:
-    Description: Version of ElasticSearch to use. (5.6 recommended for new installs)
+    Description: Version of ElasticSearch to use. (6.8 recommended for new installs)
     Type: String
-    Default: '5.6'
+    Default: '6.8'
     AllowedValues:
     - '5.3'
     - '5.5'
     - '5.6'
+    - '6.8'
   ChefElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
     Default: 3
