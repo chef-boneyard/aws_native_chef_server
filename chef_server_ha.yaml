@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Native Chef Server (auto-scaling HA) v5.1.1
+Description: AWS Native Chef Server (auto-scaling HA) v5.2.0
 
 Parameters:
   # Required Parameters
@@ -201,7 +201,7 @@ Parameters:
     Type: String
   TemplateVersion:
     Type: String
-    Default: "5.1.1"
+    Default: "5.2.0"
 
 Metadata:
   cfn-lint:

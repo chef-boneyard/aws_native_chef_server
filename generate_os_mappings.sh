@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CENTOS_RELEASE='aws-native-chef-server-5.1.*'
+CENTOS_RELEASE='aws-native-chef-server-5.2.*'
 IMAGE_OWNERID="446539779517"
 
 printf "Mappings:\n  AMI:\n"
