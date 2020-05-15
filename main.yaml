@@ -137,7 +137,7 @@ Parameters:
   ChefElasticSearchVersion:
     Description: Version of ElasticSearch to use. (6.8 recommended for new installs)
     Type: String
-    Default: '6.8'
+    Default: '5.6'
     AllowedValues:
     - '5.3'
     - '5.5'

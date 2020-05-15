@@ -147,8 +147,9 @@ Parameters:
   ChefElasticSearchVersion:
     Description: Version of ElasticSearch to use. (6.8 recommended for new installs)
     Type: String
-    Default: '6.8'
+    Default: '5.6'
     AllowedValues:
+    - '5.6'
     - '6.8'
   ChefElasticSearchShardCount:
     Description: Number of ElasticSearch hosts to provision at launch (3 recommended, 2 provides HA)
