@@ -94,6 +94,11 @@ Resources:
 
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
+    # Enable in-place upgrade of ES domain
+    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-attribute-updatepolicy.html#cfn-attributes-updatepolicy-upgradeelasticsearchdomain 
+    # https://docs.aws.amazon.com/elasticsearch-service/latest/developerguide/es-version-migration.html
+    UpdatePolicy:
+      EnableVersionUpgrade: true
     Properties:
       ElasticsearchVersion: !Ref ElasticSearchVersion
       ElasticsearchClusterConfig:
