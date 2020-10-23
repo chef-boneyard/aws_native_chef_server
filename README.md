@@ -6,7 +6,7 @@ A complete Chef Stack including:
 - Chef Server cluster utilizing Amazon services for high availability, auto-scaling and DBaaS
 - Chef Supermarket server, using EC2 Auto-Recovery
 
-![Chef Server Architecture Diagram](/images/arch-diagram.png?raw=true "Architecture Diagram")
+![Chef Server Architecture Diagram](/images/arch-diagram.svg?raw=true "Architecture Diagram")
 
 # What does the chef_server_ha template provision?
 - A "bootstrap" frontend in an Auto Scaling Group of 1.
