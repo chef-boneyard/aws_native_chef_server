@@ -1,6 +1,9 @@
 [![Build Status](https://travis-ci.org/chef-customers/aws_native_chef_server.svg?branch=master)](https://travis-ci.org/chef-customers/aws_native_chef_server)
 
 # AWS Native Chef Stack
+
+**Note: This repository highlights example pattern usage only and is not supported or officially maintained.  USE AT YOUR OWN RISK!**
+
 A complete Chef Stack including:
 - Chef Automate 2 server, using EC2 Auto-Recovery
 - Chef Server cluster utilizing Amazon services for high availability, auto-scaling and DBaaS
