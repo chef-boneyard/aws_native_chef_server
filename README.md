@@ -2,7 +2,7 @@
 
 # AWS Native Chef Stack
 
-**Note: This repository highlights example pattern usage only and is not supported or officially maintained.  USE AT YOUR OWN RISK!**
+**Note: This repository highlights example pattern usage only and is not supported or officially maintained.  USE AT YOUR OWN RISK!**   
 
 A complete Chef Stack including:
 - Chef Automate 2 server, using EC2 Auto-Recovery
