@@ -2,7 +2,7 @@
 
 # AWS Native Chef Stack
 
-**Note: This repository highlights example pattern usage only and is not supported or officially maintained.  USE AT YOUR OWN RISK!**   
+# Note: This repository highlights example pattern usage only and is not supported or officially maintained.  USE AT YOUR OWN RISK!
 
 A complete Chef Stack including:
 - Chef Automate 2 server, using EC2 Auto-Recovery
@@ -117,13 +117,6 @@ Yes, it is significantly more robust and easier to operate.
 - It is based on the architecture of Hosted Chef (albeit simplified)
 - AWS RDS and ElasticSearch significantly reduce the maintenance burden compared to chef-backend
 - AWS RDS and ElasticSearch provide a much better model for multi-AZ operations than chef-backend, and AWS RDS provides cross-region replication capabilities
-
-### Is this supported by Chef Software, Inc?
-
-- The Chef software installed (Chef Server and add-ons) are fully supported by Chef.  The operating mode (using AWS RDS and ES) is also fully supported by Chef.
-- For everything else, there are no support SLAs.  including:
-  - The template itself and any errors you may have provisioning services (talk to your Customer Success team if you need help)
-  - Any AWS services provisioned (RDS, ElasticSearch) - please direct questions to AWS Customer Support
 
 ### What improvements can be made to this template?
 
